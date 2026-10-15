@@ -63,13 +63,12 @@ The CYD uses its own separate enclosure and power supply. The planned left base 
 
 ![ESP32 pinout and low-voltage wiring](hardware/docs/wiring.png)
 
-[Vector diagram](hardware/docs/wiring.svg). Level-shifter pin numbers refer to the standard 14-pin [TI SN74AHCT125](https://www.ti.com/lit/ds/symlink/sn74ahct125.pdf). For unused gates, tie inputs to a defined level and disable outputs via their OE pins. Four-output mode requires one level-shifter channel and series resistor per data line.
+[Vector diagram](hardware/docs/wiring.svg). This diagram documents the actual direct connection: ESP32 GPIO18 connects to DIN of the first LED strip, without a level shifter.
 
 The current firmware uses **one data output on GPIO18** for a 120-pixel chain:
 
 ```text
-GPIO18 -> 5 V logic-level shifter -> 330 ohm resistor
-       -> TOP -> FRONT UPPER -> FRONT LOWER -> BOTTOM
+GPIO18 -> TOP DIN -> FRONT UPPER -> FRONT LOWER -> BOTTOM
 GPIO27 -> DS3225 signal
 5 V supply -> parallel power injection to all four strips
 GND -> common ground for LEDs, ESP32, and servo
@@ -86,7 +85,7 @@ Viewed from the same side, the data directions alternate:
 
 The firmware reverses the logical pixel order of the second and fourth strips so effects have a consistent left-to-right direction. Four independent data outputs are an optional, currently disabled configuration using GPIO18, GPIO19, GPIO23, and GPIO25.
 
-Power the LEDs and servo from an adequately rated supply, **not through the ESP32 USB connector**. Classic WS2812 LEDs can draw up to approximately 7.2 A at full RGB white across 120 pixels. Firmware currently caps *estimated LED current* to 4 A; this is not a measured total-system current limit. The DS3225 also needs sufficient transient current. Use appropriate wiring, protection, and power injection. A 5 V-compatible logic-level shifter such as the 74AHCT125 is recommended.
+Power the LEDs and servo from an adequately rated supply, **not through the ESP32 USB connector**. Classic WS2812 LEDs can draw up to approximately 7.2 A at full RGB white across 120 pixels. Firmware currently caps *estimated LED current* to 4 A; this is not a measured total-system current limit. The DS3225 also needs sufficient transient current. Use appropriate wiring, protection, and power injection. The ESP32 and LED supply must share a common ground.
 
 ## Mechanical design and 3D printing
 
