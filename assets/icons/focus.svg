@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-6 -6 60 60" width="64" height="64" fill="none" stroke="none" stroke-linecap="round" stroke-linejoin="round">
+<defs>
+<linearGradient id="ivory" x1="0" y1="0" x2="0.7" y2="1"><stop stop-color="#ffffff"/><stop offset="1" stop-color="#dcecf9"/></linearGradient>
+<linearGradient id="gold" x1="0" y1="0" x2="0.6" y2="1"><stop stop-color="#fff3b5"/><stop offset="1" stop-color="#ffbc55"/></linearGradient>
+<linearGradient id="lens" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#86e4ff"/><stop offset="1" stop-color="#5680e9"/></linearGradient>
+<filter id="depth" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="1.1" stdDeviation="0.7" flood-color="#13213e" flood-opacity="0.2"/></filter>
+</defs>
+<g filter="url(#depth)"><g stroke="none"><path d="M9 30a15 15 0 0 1 30 0" fill="url(#gold)"/><path d="M11 24a13 13 0 0 1 25-3" fill="#ffeab0"/><rect x="1" y="32" width="46" height="6" rx="3" fill="#def6ec"/><rect x="7" y="41" width="34" height="3" rx="1.5" fill="#8ed7c3"/><path d="M24 3v7M6 12l5 5m31-5-5 5" stroke="#f5faff" stroke-width="3"/><circle cx="18" cy="23" r="3" fill="#fff6d9"/></g></g>
+</svg>

@@ -8,6 +8,7 @@
 #include <WebServer.h>
 #include "library_store.h"
 #include "web_ui.h"
+#include "scene_icon_assets.h"
 #include "config.h"
 #include "network.h"
 #include "protocol.h"
@@ -91,145 +92,6 @@ void iconLine(int x0, int y0, int x1, int y1, uint16_t color) {
     if (abs(x1 - x0) >= abs(y1 - y0)) tft.drawLine(x0, y0 + 1, x1, y1 + 1, color);
     else tft.drawLine(x0 + 1, y0, x1 + 1, y1, color);
 }
-void outlineSceneIcon(uint8_t icon, int cx, int cy, uint16_t color) {
-    if (icon == 0) { // Warm: sun
-        tft.drawCircle(cx, cy, 10, color);
-        tft.drawCircle(cx, cy, 9, color);
-        for (int i = 0; i < 8; ++i) {
-            float a = i * .78539816f;
-            iconLine(cx + lroundf(cosf(a) * 16), cy + lroundf(sinf(a) * 16),
-                     cx + lroundf(cosf(a) * 22), cy + lroundf(sinf(a) * 22), color);
-        }
-    } else if (icon == 1) { // Reading: open book
-        for (int side : {-1, 1}) {
-            iconLine(cx, cy - 11, cx + side * 10, cy - 16, color);
-            iconLine(cx + side * 10, cy - 16, cx + side * 23, cy - 13, color);
-            iconLine(cx + side * 23, cy - 13, cx + side * 23, cy + 15, color);
-            iconLine(cx + side * 23, cy + 15, cx + side * 10, cy + 12, color);
-            iconLine(cx + side * 10, cy + 12, cx, cy + 17, color);
-            for (int y : {-5, 3})
-                iconLine(cx + side * 6, cy + y, cx + side * 16, cy + y - 2, color);
-        }
-        iconLine(cx, cy - 11, cx, cy + 17, color);
-    } else if (icon == 2) { // Ocean: three flowing waves
-        for (int row = -1; row <= 1; ++row) {
-            for (int x = -23; x < 23; x += 2) {
-                int y0 = lroundf(sinf((x + 23) * .1366f) * 4);
-                int y1 = lroundf(sinf((x + 25) * .1366f) * 4);
-                iconLine(cx + x, cy + row * 11 + y0,
-                         cx + x + 2, cy + row * 11 + y1, color);
-            }
-        }
-    } else if (icon == 3) { // Candle
-        constexpr int8_t flame[][2] = {{0,-24},{-7,-15},{-7,-9},{-3,-4},
-                                       {3,-4},{7,-9},{6,-15},{0,-24}};
-        for (uint8_t i = 1; i < sizeof(flame) / sizeof(flame[0]); ++i)
-            iconLine(cx + flame[i-1][0], cy + flame[i-1][1],
-                     cx + flame[i][0], cy + flame[i][1], color);
-        tft.drawRoundRect(cx - 9, cy + 2, 19, 20, 3, color);
-        tft.drawRoundRect(cx - 8, cy + 3, 17, 18, 2, color);
-        iconLine(cx, cy - 2, cx, cy + 2, color);
-        iconLine(cx - 15, cy + 22, cx + 15, cy + 22, color);
-    } else if (icon == 4) { // Meeting camera
-        tft.drawRoundRect(cx - 24, cy - 15, 32, 30, 5, color);
-        tft.drawRoundRect(cx - 23, cy - 14, 30, 28, 4, color);
-        iconLine(cx + 8, cy - 6, cx + 23, cy - 14, color);
-        iconLine(cx + 23, cy - 14, cx + 23, cy + 14, color);
-        iconLine(cx + 23, cy + 14, cx + 8, cy + 6, color);
-    } else if (icon == 5) { // Heart, one continuous outline
-        constexpr int8_t points[][2] = {{0,-10},{-6,-17},{-14,-18},{-21,-13},{-23,-5},
-            {-20,3},{0,22},{20,3},{23,-5},{21,-13},{14,-18},{6,-17},{0,-10}};
-        for (uint8_t i = 1; i < sizeof(points)/sizeof(points[0]); ++i)
-            iconLine(cx + points[i-1][0], cy + points[i-1][1], cx + points[i][0], cy + points[i][1], color);
-    } else if (icon == 6) { // Indirect light / rising sun
-        for (int x = -14; x < 14; ++x) {
-            int y0 = -lroundf(sqrtf(196 - x*x));
-            int y1 = -lroundf(sqrtf(196 - (x+1)*(x+1)));
-            iconLine(cx+x, cy+9+y0, cx+x+1, cy+9+y1, color);
-        }
-        iconLine(cx-23, cy+13, cx+23, cy+13, color);
-        iconLine(cx, cy-24, cx, cy-17, color);
-        iconLine(cx-21, cy-13, cx-16, cy-8, color);
-        iconLine(cx+21, cy-13, cx+16, cy-8, color);
-        iconLine(cx, cy+24, cx, cy+19, color);
-    } else { // Four-point sparkle
-        constexpr int8_t points[][2] = {{0,-24},{7,-7},{24,0},{7,7},{0,24},{-7,7},{-24,0},{-7,-7},{0,-24}};
-        for (uint8_t i=1;i<sizeof(points)/sizeof(points[0]);++i)
-            iconLine(cx+points[i-1][0],cy+points[i-1][1],cx+points[i][0],cy+points[i][1],color);
-        iconLine(cx+19,cy-24,cx+19,cy-14,color); iconLine(cx+14,cy-19,cx+24,cy-19,color);
-    }
-}
-
-void sparkle(int cx,int cy,int radius,uint16_t color) {
-    int inner=radius/3;
-    tft.fillTriangle(cx,cy-radius,cx-inner,cy,cx+inner,cy,color);
-    tft.fillTriangle(cx,cy+radius,cx-inner,cy,cx+inner,cy,color);
-    tft.fillTriangle(cx-radius,cy,cx,cy-inner,cx,cy+inner,color);
-    tft.fillTriangle(cx+radius,cy,cx,cy-inner,cx,cy+inner,color);
-}
-void sceneIcon(uint8_t icon,int cx,int cy,uint16_t) {
-    const uint16_t white=rgb565(0xf5faff), gold=rgb565(0xffd778), blue=rgb565(0x3877d8);
-    if(icon==4) {
-        tft.fillTriangle(cx+8,cy-6,cx+25,cy-15,cx+25,cy+15,rgb565(0xc8e5f7));
-        tft.fillTriangle(cx+8,cy-6,cx+25,cy+15,cx+8,cy+6,rgb565(0xc8e5f7));
-        tft.fillRoundRect(cx-26,cy-17,38,34,8,rgb565(0xc9e8fa));
-        tft.fillRoundRect(cx-26,cy-19,38,31,8,white);
-        tft.fillCircle(cx-7,cy-3,12,rgb565(0x233e6b));
-        tft.fillCircle(cx-7,cy-3,9,rgb565(0x54baf0));
-        tft.fillCircle(cx-7,cy-3,5,blue);
-        tft.fillCircle(cx-10,cy-6,3,white);
-        tft.fillCircle(cx+5,cy-12,2,rgb565(0xf47d9b));
-    } else if(icon==5) {
-        uint16_t pink=rgb565(0xffd5e8);
-        tft.fillCircle(cx-10,cy-6,13,pink);tft.fillCircle(cx+10,cy-6,13,pink);
-        tft.fillTriangle(cx-23,cy-3,cx+23,cy-3,cx,cy+24,pink);
-        tft.fillTriangle(cx-12,cy+12,cx+12,cy+12,cx,cy+24,rgb565(0xf4a7ce));
-        tft.fillCircle(cx-14,cy-11,4,rgb565(0xfff3fb));
-        sparkle(cx+25,cy-22,6,gold);
-    } else if(icon==6) {
-        // Warm light above a pale lightbar, with small reflected highlights.
-        for(int row=-16;row<=0;++row) {
-            int half=lroundf(sqrtf(256-row*row));
-            tft.drawFastHLine(cx-half,cy+7+row,half*2+1,
-                rgb565(row < -7 ? 0xffebac : 0xffc85a));
-        }
-        tft.fillRoundRect(cx-25,cy+9,50,7,3,rgb565(0xdef6ec));
-        tft.fillRoundRect(cx-19,cy+18,38,3,1,rgb565(0x8ed7c3));
-        tft.fillRoundRect(cx-2,cy-27,4,8,2,white);
-        iconLine(cx-24,cy-14,cx-19,cy-9,white);
-        iconLine(cx+24,cy-14,cx+19,cy-9,white);
-        tft.fillCircle(cx-6,cy-1,3,rgb565(0xfff6d9));
-    } else if(icon==7) {
-        sparkle(cx+1,cy+1,25,rgb565(0x6544b6));
-        sparkle(cx-2,cy-2,24,rgb565(0xfff1bd));
-        sparkle(cx+20,cy-21,10,rgb565(0x94f3ed));
-        sparkle(cx-23,cy+18,8,rgb565(0xffb8df));
-        tft.fillCircle(cx+21,cy+19,3,white);
-        tft.fillCircle(cx-22,cy-19,2,white);
-    } else if(icon==0) {
-        outlineSceneIcon(icon,cx,cy,gold);
-        tft.fillCircle(cx,cy,11,gold);tft.fillCircle(cx-3,cy-3,6,rgb565(0xffecae));
-    } else if(icon==1) {
-        tft.fillRoundRect(cx-24,cy-16,49,33,4,rgb565(0xffefd3));
-        tft.fillRect(cx-2,cy-16,4,34,rgb565(0xbda0e6));
-        for(int y=-8;y<=8;y+=8) {
-            tft.fillRoundRect(cx-18,cy+y,11,2,1,rgb565(0xc09c7d));
-            tft.fillRoundRect(cx+7,cy+y,11,2,1,rgb565(0xc09c7d));
-        }
-    } else if(icon==2) {
-        for(int row=-1;row<=1;++row)for(int x=-24;x<24;++x) {
-            int y=lroundf(sinf((x+24)*.13f)*4)+row*12;
-            tft.drawFastVLine(cx+x,cy+y,5,rgb565(row<0?0xd3f7ff:row==0?0x90dfef:0x67bce7));
-        }
-    } else {
-        tft.fillRoundRect(cx-11,cy+2,23,22,4,rgb565(0xffe9cd));
-        tft.fillRect(cx+5,cy+4,4,17,rgb565(0xe8bfa7));
-        tft.fillCircle(cx,cy-8,8,gold);tft.fillTriangle(cx-8,cy-9,cx+8,cy-9,cx,cy-25,gold);
-        tft.fillCircle(cx,cy-6,4,rgb565(0xfff6d6));
-        tft.fillRoundRect(cx-17,cy+24,35,3,1,white);
-    }
-}
-
 uint32_t activeSavedId() {
     if (!online || confirmedScene == 0) return 0;
     const auto* s = Lamp::findScene(library, confirmedSelection);
@@ -239,6 +101,31 @@ uint32_t activeSavedId() {
 uint16_t tileColor(uint32_t rgb, float factor) {
     return tft.color565(uint8_t((rgb >> 16) * factor), uint8_t(((rgb >> 8) & 255) * factor), uint8_t((rgb & 255) * factor));
 }
+// Composite native-size antialiased sprites onto the exact tile gradient.
+// The 64-pixel scanline needs only 128 bytes of RAM; assets stay in flash.
+void sceneIcon(uint8_t icon,int cx,int cy,uint32_t tint) {
+    if(icon>=SCENE_ICON_COUNT)return;
+    uint16_t scanline[SCENE_ICON_SIZE];
+    bool swapped=tft.getSwapBytes();
+    tft.setSwapBytes(true);
+    for(int y=0;y<SCENE_ICON_SIZE;++y) {
+        uint16_t background=tileColor(tint,.98f-(43-SCENE_ICON_SIZE/2+y)*.0047f);
+        unsigned br=((background>>11)&31)*255/31;
+        unsigned bg=((background>>5)&63)*255/63;
+        unsigned bb=(background&31)*255/31;
+        for(int x=0;x<SCENE_ICON_SIZE;++x) {
+            uint32_t pixel=pgm_read_dword(&SCENE_ICON_RGBA[icon][y*SCENE_ICON_SIZE+x]);
+            unsigned alpha=pixel>>24, inverse=255-alpha;
+            scanline[x]=tft.color565(
+                ((((pixel>>16)&255)*alpha+br*inverse+127)/255),
+                ((((pixel>>8)&255)*alpha+bg*inverse+127)/255),
+                (((pixel&255)*alpha+bb*inverse+127)/255));
+        }
+        tft.pushImage(cx-SCENE_ICON_SIZE/2,cy-SCENE_ICON_SIZE/2+y,SCENE_ICON_SIZE,1,scanline);
+    }
+    tft.setSwapBytes(swapped);
+}
+
 void sceneTile(const Lamp::SavedScene& scene, int x, int y, bool selected, bool waiting) {
     tft.fillRoundRect(x+2, y+4, 120, 86, 16, 0x0022);
     for (int row=0; row<86; ++row) {
@@ -252,7 +139,7 @@ void sceneTile(const Lamp::SavedScene& scene, int x, int y, bool selected, bool 
         tft.drawRoundRect(x-2,y-2,124,90,18,ring);
         tft.drawRoundRect(x-1,y-1,122,88,17,ring);
     }
-    sceneIcon(scene.icon,x+60,y+43,0xffff);
+    sceneIcon(scene.icon,x+60,y+43,scene.tint);
     if (selected) {
         tft.fillCircle(x+103,y+14,8,0xffff);
         iconLine(x+99,y+14,x+102,y+17,BG);iconLine(x+102,y+17,x+108,y+11,BG);

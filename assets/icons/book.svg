@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-6 -6 60 60" width="64" height="64" fill="none" stroke="none" stroke-linecap="round" stroke-linejoin="round">
+<defs>
+<linearGradient id="ivory" x1="0" y1="0" x2="0.7" y2="1"><stop stop-color="#ffffff"/><stop offset="1" stop-color="#dcecf9"/></linearGradient>
+<linearGradient id="gold" x1="0" y1="0" x2="0.6" y2="1"><stop stop-color="#fff3b5"/><stop offset="1" stop-color="#ffbc55"/></linearGradient>
+<linearGradient id="lens" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#86e4ff"/><stop offset="1" stop-color="#5680e9"/></linearGradient>
+<filter id="depth" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="1.1" stdDeviation="0.7" flood-color="#13213e" flood-opacity="0.2"/></filter>
+</defs>
+<g filter="url(#depth)"><g stroke="none"><rect x="2" y="9" width="44" height="33" rx="5" fill="#dbc9c1"/><path d="M24 12C15 6 8 8 2 10v29c9-3 15-2 22 3 7-5 13-6 22-3V10c-8-3-15-3-22 2" fill="#fff0d7"/><path d="M24 12v30" stroke="#bda0e6" stroke-width="3"/><path d="M8 18h9M8 25h9M8 32h9m14-14h9m-9 7h9m-9 7h9" stroke="#c09c7d" stroke-width="2"/></g></g>
+</svg>

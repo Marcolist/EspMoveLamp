@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-6 -6 60 60" width="64" height="64" fill="none" stroke="none" stroke-linecap="round" stroke-linejoin="round">
+<defs>
+<linearGradient id="ivory" x1="0" y1="0" x2="0.7" y2="1"><stop stop-color="#ffffff"/><stop offset="1" stop-color="#dcecf9"/></linearGradient>
+<linearGradient id="gold" x1="0" y1="0" x2="0.6" y2="1"><stop stop-color="#fff3b5"/><stop offset="1" stop-color="#ffbc55"/></linearGradient>
+<linearGradient id="lens" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#86e4ff"/><stop offset="1" stop-color="#5680e9"/></linearGradient>
+<filter id="depth" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="1.1" stdDeviation="0.7" flood-color="#13213e" flood-opacity="0.2"/></filter>
+</defs>
+<g filter="url(#depth)"><g fill="none" stroke-width="5"><path d="M3 12c10 10 16-10 26 0s14 0 16 0" stroke="#d3f7ff"/><path d="M3 24c10 10 16-10 26 0s14 0 16 0" stroke="#90dfef"/><path d="M3 36c10 10 16-10 26 0s14 0 16 0" stroke="#67bce7"/></g></g>
+</svg>

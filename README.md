@@ -120,6 +120,20 @@ Nach dem Einschalten der Lampenversorgung bleiben Licht und Servo aus; es erfolg
 
 Das Display ist eine Fernbedienung; die Lampe spielt die letzte bestätigte Szene bei WLAN-Ausfall oder ausgeschaltetem Display weiter. Während eines Ausfalls angetippte Szenen werden nicht vorgemerkt. Die Helligkeit ist ein Wunschwert; das unveränderte Strombudget kann die tatsächliche RGB-Helligkeit weiter begrenzen.
 
+### Symbolgrafiken
+
+Die acht Symbole liegen als SVG-Vorlagen in `assets/icons/`. Für das Display werden sie achtfach gerendert und mit Kantenglättung auf **64 × 64 Pixel** verkleinert. Transparente Randpixel werden mit dem tatsächlichen Kachelverlauf verrechnet; der Browser nutzt dieselben Vektorgrafiken. Die Display-Assets belegen 128 KiB Flash, der Renderer verwendet nur eine 128-Byte-Bildzeile im RAM.
+
+Nach Änderungen an den SVGs die eingecheckten Assets und Browsergrafiken regenerieren:
+
+```bash
+python -m pip install -r tools/icon-requirements.txt
+python tools/generate_icons.py
+pio run -e cyd
+```
+
+Ein normaler Firmware-Build benötigt diese Python-Pakete nicht. `src/cyd/scene_icon_assets.h` wird generiert und nicht von Hand bearbeitet.
+
 ## DS3225 einstellen
 
 Den DS3225 gibt es als **180°- und 270°-Variante**. Die rote Gehäusefarbe bestimmt die Variante nicht. Laut Datenblatt entspricht 500–2500 µs jeweils dem vollständigen Stellweg, mit 1500 µs als Mitte und 50–330 Hz PWM; die Firmware verwendet 50 Hz.
