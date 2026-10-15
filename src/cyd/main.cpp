@@ -28,8 +28,6 @@ Lamp::ManualSettings confirmedSettings, draft;
 uint8_t draftBrightness = Config::INITIAL_BRIGHTNESS, selectedSide = 0, resumeScene = 1;
 bool draftMotion = false;
 constexpr uint8_t PRESETS[] = {1, 2, 4, 6};
-constexpr const char* PRESET_NAMES[] = {"Warm", "Lesen", "Ozean", "Kerze"};
-constexpr const char* PRESET_DETAILS[] = {"Ankommen & entspannen", "Klar & fokussiert", "Sanfte blaue Wellen", "Warmes Flackern"};
 constexpr uint32_t PALETTE[] = {0x000000, 0xffdcaa, 0xffffff, 0xff7828,
                                 0xf04460, 0xab60ff, 0x3280ff, 0x24c8aa};
 const char* message = "Suche Lampe...";
@@ -79,6 +77,54 @@ void button(int x, int y, int w, int h, const String& text, uint16_t border,
     tft.drawString(text, x + w / 2, y + h / 2, font);
 }
 
+// A consistent two-pixel line style, drawn natively at the display resolution.
+void iconLine(int x0, int y0, int x1, int y1, uint16_t color) {
+    tft.drawLine(x0, y0, x1, y1, color);
+    if (abs(x1 - x0) >= abs(y1 - y0)) tft.drawLine(x0, y0 + 1, x1, y1 + 1, color);
+    else tft.drawLine(x0 + 1, y0, x1 + 1, y1, color);
+}
+void sceneIcon(uint8_t icon, int cx, int cy, uint16_t color) {
+    if (icon == 0) { // Warm: sun
+        tft.drawCircle(cx, cy, 10, color);
+        tft.drawCircle(cx, cy, 9, color);
+        for (int i = 0; i < 8; ++i) {
+            float a = i * .78539816f;
+            iconLine(cx + lroundf(cosf(a) * 16), cy + lroundf(sinf(a) * 16),
+                     cx + lroundf(cosf(a) * 22), cy + lroundf(sinf(a) * 22), color);
+        }
+    } else if (icon == 1) { // Reading: open book
+        for (int side : {-1, 1}) {
+            iconLine(cx, cy - 11, cx + side * 10, cy - 16, color);
+            iconLine(cx + side * 10, cy - 16, cx + side * 23, cy - 13, color);
+            iconLine(cx + side * 23, cy - 13, cx + side * 23, cy + 15, color);
+            iconLine(cx + side * 23, cy + 15, cx + side * 10, cy + 12, color);
+            iconLine(cx + side * 10, cy + 12, cx, cy + 17, color);
+            for (int y : {-5, 3})
+                iconLine(cx + side * 6, cy + y, cx + side * 16, cy + y - 2, color);
+        }
+        iconLine(cx, cy - 11, cx, cy + 17, color);
+    } else if (icon == 2) { // Ocean: three flowing waves
+        for (int row = -1; row <= 1; ++row) {
+            for (int x = -23; x < 23; x += 2) {
+                int y0 = lroundf(sinf((x + 23) * .1366f) * 4);
+                int y1 = lroundf(sinf((x + 25) * .1366f) * 4);
+                iconLine(cx + x, cy + row * 11 + y0,
+                         cx + x + 2, cy + row * 11 + y1, color);
+            }
+        }
+    } else { // Candle
+        constexpr int8_t flame[][2] = {{0,-24},{-7,-15},{-7,-9},{-3,-4},
+                                       {3,-4},{7,-9},{6,-15},{0,-24}};
+        for (uint8_t i = 1; i < sizeof(flame) / sizeof(flame[0]); ++i)
+            iconLine(cx + flame[i-1][0], cy + flame[i-1][1],
+                     cx + flame[i][0], cy + flame[i][1], color);
+        tft.drawRoundRect(cx - 9, cy + 2, 19, 20, 3, color);
+        tft.drawRoundRect(cx - 8, cy + 3, 17, 18, 2, color);
+        iconLine(cx, cy - 2, cx, cy + 2, color);
+        iconLine(cx - 15, cy + 22, cx + 15, cy + 22, color);
+    }
+}
+
 void drawCalibration() {
     tft.fillScreen(BG);
     label("Touch einrichten", 62, 75, 4, TEXT, BG);
@@ -126,13 +172,11 @@ void loadCalibration() {
 
 void drawUI() {
     tft.fillScreen(BG);
-    label("MOVE", 12, 4, 4, TEXT, BG);
-    tft.fillCircle(14, 33, 2, pending.active ? WARNING : online ? ACCENT : MUTED);
-    label(pending.active ? "Wird eingestellt" : online ? "Verbunden" : "Lampe suchen", 22, 29, 1, MUTED, BG);
+    label("Meine Lampe", 12, 9, 4, TEXT, BG);
     bool on = online && confirmedScene != 0;
     button(224, 6, 84, 32, on ? "AN" : "AUS", pending.active ? WARNING : on ? ACCENT : LINE,
            on ? ACCENT : CARD, on ? BG : TEXT, 2);
-    button(12, 46, 144, 26, "Presets", manualTab ? BG : CARD,
+    button(12, 46, 144, 26, "Szenen", manualTab ? BG : CARD,
            manualTab ? BG : CARD, manualTab ? MUTED : TEXT);
     button(164, 46, 144, 26, "Manuell", manualTab ? CARD : BG,
            manualTab ? CARD : BG, manualTab ? TEXT : MUTED);
@@ -144,13 +188,11 @@ void drawUI() {
             uint16_t edge = waiting ? WARNING : selected ? ACCENT : CARD;
             tft.fillRoundRect(x, y, 144, 65, 8, CARD);
             tft.drawRoundRect(x, y, 144, 65, 8, edge);
-            tft.fillRoundRect(x + 12, y + 10, 24, 3, 1, Lamp::SCENES[PRESETS[i]].accent);
-            label(PRESET_NAMES[i], x + 12, y + 20, 4, TEXT, CARD);
-            label(PRESET_DETAILS[i], x + 12, y + 49, 1, MUTED, CARD);
-            if (selected) tft.fillCircle(x + 130, y + 12, 3, ACCENT);
+            sceneIcon(i, x + 72, y + 32, selected ? ACCENT : TEXT);
         }
-        label(online ? (confirmedManual && on ? "Manuelles Licht aktiv" : on ? "Dein Licht. Deine Stimmung." : "Bereit, wenn du es bist.")
-                     : "Warte auf die Lampe...", 12, 229, 1, MUTED, BG);
+        tft.fillCircle(14, 232, 2, pending.active ? WARNING : online ? ACCENT : MUTED);
+        label(pending.active ? "Wird eingestellt" : online ? "Verbunden" : "Lampe verbinden...",
+              23, 229, 1, MUTED, BG);
         return;
     }
     const char* sides[] = {"Oben", "Unten", "Vorne"};
