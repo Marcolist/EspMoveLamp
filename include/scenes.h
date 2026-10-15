@@ -24,7 +24,7 @@ constexpr Scene SCENES[] = {
     {"Nacht",      "Sehr dezentes Rot",       Effect::Night,   .80f, 0,    0,     0x8804},
 };
 constexpr uint8_t SCENE_COUNT = sizeof(SCENES) / sizeof(SCENES[0]);
-constexpr uint8_t PROTOCOL_VERSION = 1;
+constexpr uint8_t PROTOCOL_VERSION = 2;
 constexpr const char* DEVICE_ID = "espmovelamp-1";
 
 inline float clamp(float v, float lo, float hi) {

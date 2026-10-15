@@ -23,12 +23,23 @@ uint32_t session, sequence = 0, lampBoot = 0;
 uint32_t lastSeen = 0, lastDiscover = 0, lastPaint = 0;
 uint8_t confirmedScene = 0, confirmedBrightness = Config::INITIAL_BRIGHTNESS;
 bool confirmedMotion = false;
+bool confirmedManual = false, manualTab = false, draftEdited = false;
+Lamp::ManualSettings confirmedSettings, draft;
+uint8_t draftBrightness = Config::INITIAL_BRIGHTNESS, selectedSide = 0, resumeScene = 1;
+bool draftMotion = false;
+constexpr uint8_t PRESETS[] = {1, 2, 4, 6};
+constexpr const char* PRESET_NAMES[] = {"Warm", "Lesen", "Ozean", "Kerze"};
+constexpr const char* PRESET_DETAILS[] = {"Ankommen & entspannen", "Klar & fokussiert", "Sanfte blaue Wellen", "Warmes Flackern"};
+constexpr uint32_t PALETTE[] = {0x000000, 0xffdcaa, 0xffffff, 0xff7828,
+                                0xf04460, 0xab60ff, 0x3280ff, 0x24c8aa};
 const char* message = "Suche Lampe...";
 
 struct Command {
     bool active = false;
     uint8_t scene = 0, brightness = 0, attempts = 0;
     bool motion = false;
+    bool manual = false;
+    Lamp::ManualSettings settings;
     uint32_t sequence = 0, sentAt = 0;
 } pending;
 
@@ -46,20 +57,26 @@ bool wasPressed = false;
 uint32_t pressedAt = 0;
 uint32_t releasedAt = 0;
 
-constexpr uint16_t BG = 0x0842, CARD = 0x18e4, TEXT = 0xef7d, MUTED = 0x8c71;
-constexpr uint16_t ACCENT = 0x05f5, WARNING = 0xfd20;
+constexpr uint16_t BG = 0x1082, CARD = 0x2124, TEXT = 0xf79c, MUTED = 0x94b2;
+constexpr uint16_t ACCENT = 0xa6b4, WARNING = 0xfd20;
+constexpr uint16_t LINE = 0x39c7;
+
+uint16_t rgb565(uint32_t rgb) {
+    return tft.color565(rgb >> 16, rgb >> 8, rgb);
+}
 
 void label(const String& text, int x, int y, uint8_t font, uint16_t color, uint16_t bg) {
     tft.setTextDatum(TL_DATUM);
     tft.setTextColor(color, bg);
     tft.drawString(text, x, y, font);
 }
-void button(int x, int y, int w, int h, const String& text, uint16_t border) {
-    tft.fillRoundRect(x, y, w, h, 4, CARD);
-    tft.drawRoundRect(x, y, w, h, 4, border);
+void button(int x, int y, int w, int h, const String& text, uint16_t border,
+            uint16_t fill = CARD, uint16_t ink = TEXT, uint8_t font = 2) {
+    tft.fillRoundRect(x, y, w, h, 7, fill);
+    tft.drawRoundRect(x, y, w, h, 7, border);
     tft.setTextDatum(MC_DATUM);
-    tft.setTextColor(TEXT, CARD);
-    tft.drawString(text, x + w / 2, y + h / 2, 2);
+    tft.setTextColor(ink, fill);
+    tft.drawString(text, x + w / 2, y + h / 2, font);
 }
 
 void drawCalibration() {
@@ -109,25 +126,57 @@ void loadCalibration() {
 
 void drawUI() {
     tft.fillScreen(BG);
-    label("MOVE / LAMP", 8, 2, 2, TEXT, BG);
-    label(pending.active ? "SENDET..." : online ? "VERBUNDEN" : "OFFLINE",
-          217, 2, 2, pending.active ? WARNING : online ? ACCENT : MUTED, BG);
-    String status = WiFi.status() == WL_CONNECTED ?
-        (online ? lampIP.toString() + "  " + message : String(message)) : "WLAN verbindet...";
-    label(status, 8, 23, 1, MUTED, BG);
-    for (uint8_t i = 0; i < Lamp::SCENE_COUNT; ++i) {
-        int x = 8 + (i % 2) * 156, y = 36 + (i / 2) * 34;
-        bool waiting = pending.active && pending.scene == i;
-        uint16_t edge = waiting ? WARNING : confirmedScene == i && online ? ACCENT : CARD;
-        button(x, y, 148, 29, String(Lamp::SCENES[i].name) + (waiting ? " ..." : ""), edge);
-        tft.fillCircle(x + 10, y + 14, 3, Lamp::SCENES[i].accent);
+    label("MOVE", 12, 4, 4, TEXT, BG);
+    tft.fillCircle(14, 33, 2, pending.active ? WARNING : online ? ACCENT : MUTED);
+    label(pending.active ? "Wird eingestellt" : online ? "Verbunden" : "Lampe suchen", 22, 29, 1, MUTED, BG);
+    bool on = online && confirmedScene != 0;
+    button(224, 6, 84, 32, on ? "AN" : "AUS", pending.active ? WARNING : on ? ACCENT : LINE,
+           on ? ACCENT : CARD, on ? BG : TEXT, 2);
+    button(12, 46, 144, 26, "Presets", manualTab ? BG : CARD,
+           manualTab ? BG : CARD, manualTab ? MUTED : TEXT);
+    button(164, 46, 144, 26, "Manuell", manualTab ? CARD : BG,
+           manualTab ? CARD : BG, manualTab ? TEXT : MUTED);
+    if (!manualTab) {
+        for (uint8_t i = 0; i < 4; ++i) {
+            int x = 12 + (i % 2) * 152, y = 82 + (i / 2) * 73;
+            bool waiting = pending.active && !pending.manual && pending.scene == PRESETS[i];
+            bool selected = online && !confirmedManual && confirmedScene == PRESETS[i];
+            uint16_t edge = waiting ? WARNING : selected ? ACCENT : CARD;
+            tft.fillRoundRect(x, y, 144, 65, 8, CARD);
+            tft.drawRoundRect(x, y, 144, 65, 8, edge);
+            tft.fillRoundRect(x + 12, y + 10, 24, 3, 1, Lamp::SCENES[PRESETS[i]].accent);
+            label(PRESET_NAMES[i], x + 12, y + 20, 4, TEXT, CARD);
+            label(PRESET_DETAILS[i], x + 12, y + 49, 1, MUTED, CARD);
+            if (selected) tft.fillCircle(x + 130, y + 12, 3, ACCENT);
+        }
+        label(online ? (confirmedManual && on ? "Manuelles Licht aktiv" : on ? "Dein Licht. Deine Stimmung." : "Bereit, wenn du es bist.")
+                     : "Warte auf die Lampe...", 12, 229, 1, MUTED, BG);
+        return;
     }
-    button(8, 176, 38, 27, "-", MUTED);
-    button(274, 176, 38, 27, "+", MUTED);
-    const uint8_t level = pending.active ? pending.brightness : confirmedBrightness;
-    label("Licht " + String((unsigned(level) * 100 + 127) / 255) + "%", 115, 181, 2, TEXT, BG);
-    button(8, 209, 148, 25, confirmedMotion ? "Servo: AN" : "Servo: AUS", confirmedMotion ? ACCENT : MUTED);
-    button(164, 209, 148, 25, "ALLES STOPP", 0xf800);
+    const char* sides[] = {"Oben", "Unten", "Vorne"};
+    for (uint8_t i = 0; i < 3; ++i) {
+        button(12 + i * 100, 79, 96, 28, sides[i], selectedSide == i ? ACCENT : CARD);
+        tft.fillCircle(24 + i * 100, 93, 4, rgb565(draft.colors[i]));
+    }
+    for (uint8_t i = 0; i < 8; ++i) {
+        int x = 12 + i * 38;
+        uint16_t color = rgb565(PALETTE[i]);
+        tft.fillRoundRect(x, 114, 30, 28, 5, color);
+        if (i == 0) tft.drawLine(x + 8, 134, x + 22, 121, MUTED);
+        if (draft.colors[selectedSide] == PALETTE[i]) {
+            tft.drawRoundRect(x - 2, 112, 34, 32, 6, TEXT);
+        }
+    }
+    label("Winkel", 12, 156, 2, MUTED, BG);
+    button(112, 151, 38, 29, "-", CARD);
+    button(270, 151, 38, 29, "+", CARD);
+    label(String(int(lroundf(draft.target))) + " Grad", 174, 156, 2, TEXT, BG);
+    label("Helligkeit", 12, 190, 2, MUTED, BG);
+    button(112, 185, 38, 26, "-", CARD);
+    button(270, 185, 38, 26, "+", CARD);
+    label(String((unsigned(draftBrightness) * 100 + 127) / 255) + " %", 180, 190, 2, TEXT, BG);
+    button(12, 217, 144, 23, draftMotion ? "Servo an" : "Servo aus", draftMotion ? ACCENT : LINE);
+    button(164, 217, 144, 23, pending.active ? "Wird gesendet" : "Anwenden", ACCENT, ACCENT, BG);
 }
 
 void sendDocument(JsonDocument& doc, IPAddress ip) {
@@ -164,11 +213,13 @@ void transmit() {
     doc["scene"] = pending.scene;
     doc["brightness"] = pending.brightness;
     doc["motion"] = pending.motion;
+    Lamp::encodeManual(doc, pending.manual, pending.settings);
     sendDocument(doc, lampIP);
     ++pending.attempts;
     pending.sentAt = millis();
 }
-void command(uint8_t scene, uint8_t brightness, bool motion) {
+void command(uint8_t scene, uint8_t brightness, bool motion, bool manual,
+             const Lamp::ManualSettings& settings) {
     if (!online || WiFi.status() != WL_CONNECTED) {
         message = "Lampe nicht erreichbar";
         dirty = true;
@@ -178,6 +229,8 @@ void command(uint8_t scene, uint8_t brightness, bool motion) {
     pending.scene = scene;
     pending.brightness = brightness;
     pending.motion = motion;
+    pending.manual = manual;
+    pending.settings = settings;
     pending.attempts = 0;
     pending.sequence = ++sequence;
     transmit();
@@ -198,6 +251,8 @@ void receive(uint32_t now) {
         JsonDocument doc;
         if (deserializeJson(doc, buffer, len)) continue;
         JsonObjectConst data = doc.as<JsonObjectConst>();
+        bool receivedManual;
+        Lamp::ManualSettings receivedSettings;
         if (!Lamp::validEnvelope(data) ||
             data["type"] != "status" || data["device"] != Lamp::DEVICE_ID ||
             !data["session"].is<uint32_t>() || !data["seq"].is<uint32_t>() ||
@@ -205,14 +260,15 @@ void receive(uint32_t now) {
             !data["boot"].is<uint32_t>() || !data["scene"].is<unsigned int>() ||
             !data["brightness"].is<unsigned int>() || !data["motion"].is<bool>() ||
             data["scene"].as<unsigned int>() >= Lamp::SCENE_COUNT ||
-            data["brightness"].as<unsigned int>() > 255) continue;
+            data["brightness"].as<unsigned int>() > 255 ||
+            !Lamp::decodeManual(data, receivedManual, receivedSettings)) continue;
         // Status from an older command must not overwrite a newer acknowledged state.
         bool heartbeat = data["session"] == 0 && data["seq"] == 0;
         bool matching = pending.active && data["session"] == session && data["seq"] == pending.sequence;
         if (!heartbeat && !matching) continue;
         bool changed = !online || confirmedScene != data["scene"].as<uint8_t>() ||
                        confirmedBrightness != data["brightness"].as<uint8_t>() ||
-                       confirmedMotion != data["motion"].as<bool>();
+                       confirmedMotion != data["motion"].as<bool>() || confirmedManual != receivedManual;
         const char* previousMessage = message;
         uint32_t boot = data["boot"];
         if (pending.active && lampBoot && boot != lampBoot) {
@@ -221,6 +277,7 @@ void receive(uint32_t now) {
             changed = true;
         } else if (matching) {
             pending.active = false;
+            if (data["ack"] == true && pending.manual) draftEdited = false;
             message = data["ack"] == true ? "Bestaetigt" : "Bitte erneut waehlen";
             changed = true;
         } else if (!pending.active) message = "Bereit";
@@ -231,29 +288,64 @@ void receive(uint32_t now) {
         confirmedScene = data["scene"];
         confirmedBrightness = data["brightness"];
         confirmedMotion = data["motion"];
+        confirmedManual = receivedManual;
+        confirmedSettings = receivedSettings;
+        if (confirmedScene != 0) resumeScene = confirmedScene;
+        if (!draftEdited) {
+            draft = confirmedSettings;
+            draftBrightness = confirmedBrightness;
+            draftMotion = confirmedMotion;
+        }
         dirty = dirty || changed || previousMessage != message;
     }
 }
 void handleTap(int x, int y) {
-    // Stop can supersede an unacknowledged command; the lamp rejects its older retries.
-    if (y >= 209 && y < 234 && x >= 164 && x < 312) {
-        command(0, confirmedBrightness, false);
+    // Power off supersedes a pending command and disables the servo as well.
+    if (x >= 224 && x < 308 && y >= 6 && y < 38) {
+        bool stop = confirmedScene != 0 || pending.active;
+        command(stop ? 0 : resumeScene, confirmedBrightness, false, confirmedManual, confirmedSettings);
+        return;
+    }
+    if (y >= 46 && y < 72 && x >= 12 && x < 308 && (x < 156 || x >= 164)) {
+        manualTab = x >= 164;
+        dirty = true;
         return;
     }
     if (pending.active) return;
-    if (y >= 36 && y < 167) {
-        int row = (y - 36) / 34;
-        int col = x >= 164 ? 1 : 0;
-        int left = 8 + col * 156;
-        if (x >= left && x < left + 148 && (y - 36) % 34 < 29) {
-            command(row * 2 + col, confirmedBrightness, confirmedMotion);
+    if (!manualTab) {
+        for (uint8_t i = 0; i < 4; ++i) {
+            int left = 12 + (i % 2) * 152, top = 82 + (i / 2) * 73;
+            if (x >= left && x < left + 144 && y >= top && y < top + 65)
+                command(PRESETS[i], confirmedBrightness, confirmedMotion, false, confirmedSettings);
         }
-    } else if (y >= 176 && y < 203) {
-        if (x >= 8 && x < 46) command(confirmedScene, max(0, int(confirmedBrightness) - 26), confirmedMotion);
-        if (x >= 274 && x < 312) command(confirmedScene, min(255, int(confirmedBrightness) + 26), confirmedMotion);
-    } else if (y >= 209 && y < 234 && x >= 8 && x < 156) {
-        command(confirmedScene, confirmedBrightness, !confirmedMotion);
+        return;
     }
+    if (y >= 79 && y < 107) {
+        for (uint8_t i = 0; i < 3; ++i)
+            if (x >= 12 + i * 100 && x < 108 + i * 100) selectedSide = i;
+    } else if (y >= 114 && y < 142) {
+        for (uint8_t i = 0; i < 8; ++i) {
+            if (x >= 12 + i * 38 && x < 42 + i * 38) {
+                draft.colors[selectedSide] = PALETTE[i];
+                draftEdited = true;
+            }
+        }
+    } else if (y >= 151 && y < 180) {
+        int delta = x >= 112 && x < 150 ? -1 : x >= 270 && x < 308 ? 1 : 0;
+        draft.target = Lamp::clamp(draft.target + delta, Config::SERVO_MIN_DEG, Config::SERVO_MAX_DEG);
+        if (delta) draftEdited = true;
+    } else if (y >= 185 && y < 211) {
+        int delta = x >= 112 && x < 150 ? -26 : x >= 270 && x < 308 ? 26 : 0;
+        draftBrightness = constrain(int(draftBrightness) + delta, 0, 255);
+        if (delta) draftEdited = true;
+    } else if (y >= 217 && y < 240) {
+        if (x >= 12 && x < 156) { draftMotion = !draftMotion; draftEdited = true; }
+        if (x >= 164 && x < 308) {
+            command(1, draftBrightness, draftMotion, true, draft);
+            // Keep the draft until a matching acknowledgement arrives.
+        }
+    }
+    dirty = true;
 }
 
 void tickTouch(uint32_t now) {

@@ -70,6 +70,7 @@ JsonDocument validPacket() {
     d["scene"] = 4;
     d["brightness"] = 255;
     d["motion"] = true;
+    Lamp::encodeManual(d, false, Lamp::ManualSettings{});
     return d;
 }
 void testProtocol() {
@@ -78,7 +79,7 @@ void testProtocol() {
     assert(Lamp::decodeCommand(d.as<JsonObjectConst>(), 123, cmd));
     assert(cmd.scene == 4 && cmd.brightness == 255 && cmd.motion && cmd.session == 456);
     assert(!Lamp::decodeCommand(d.as<JsonObjectConst>(), 124, cmd)); // restarted lamp
-    for (const char* missing : {"v", "type", "key", "boot", "session", "seq", "scene", "brightness", "motion"}) {
+    for (const char* missing : {"v", "type", "key", "boot", "session", "seq", "scene", "brightness", "motion", "manual", "target", "colors"}) {
         auto invalid = validPacket();
         invalid.remove(missing);
         assert(!Lamp::decodeCommand(invalid.as<JsonObjectConst>(), 123, cmd));
@@ -109,7 +110,51 @@ void testProtocol() {
     assert(gate.inspect(100, UINT32_MAX) == Order::Stale);
     assert(gate.inspect(101, 1) == Order::New); // new controller boot
 }
+void testManual() {
+    Lamp::Command cmd{};
+    auto d = validPacket();
+    Lamp::ManualSettings settings;
+    settings.target = Config::SERVO_MAX_DEG;
+    settings.colors[0] = 0xff0000;
+    settings.colors[1] = 0x00ff00;
+    settings.colors[2] = 0x0000ff;
+    Lamp::encodeManual(d, true, settings);
+    assert(Lamp::decodeCommand(d.as<JsonObjectConst>(), 123, cmd));
+    assert(cmd.manual && cmd.settings.target == Config::SERVO_MAX_DEG);
+    assert(Lamp::manualColor(cmd.settings, 0).r == 255);
+    assert(Lamp::manualColor(cmd.settings, 1).g == 255);
+    assert(Lamp::manualColor(cmd.settings, 2).b == 255);
+    assert(Lamp::manualColor(cmd.settings, 3).b == 255); // both front strips
+    d["target"] = Config::SERVO_MIN_DEG;
+    assert(Lamp::decodeCommand(d.as<JsonObjectConst>(), 123, cmd));
+    for (float invalid : {Config::SERVO_MIN_DEG - 1, Config::SERVO_MAX_DEG + 1, INFINITY, NAN}) {
+        d["target"] = invalid;
+        assert(!Lamp::decodeCommand(d.as<JsonObjectConst>(), 123, cmd));
+    }
+    for (const char* invalid : {"true", "\"90\"", "null", "{}", "[]"}) {
+        d = validPacket();
+        JsonDocument value;
+        assert(!deserializeJson(value, invalid));
+        d["target"].set(value.as<JsonVariantConst>());
+        assert(!Lamp::decodeCommand(d.as<JsonObjectConst>(), 123, cmd));
+    }
+    for (const char* invalid : {"[]", "[0,0]", "[0,0,0,0]", "[0,0,-1]", "[0,0,16777216]", "[0,0,1.5]", "[0,0,true]", "[0,0,\"255\"]", "null", "{}"}) {
+        d = validPacket();
+        JsonDocument value;
+        assert(!deserializeJson(value, invalid));
+        d["colors"].set(value.as<JsonVariantConst>());
+        assert(!Lamp::decodeCommand(d.as<JsonObjectConst>(), 123, cmd));
+    }
+    d = validPacket(); d["manual"] = 1;
+    assert(!Lamp::decodeCommand(d.as<JsonObjectConst>(), 123, cmd));
+    d = validPacket(); d["v"] = 1;
+    assert(!Lamp::decodeCommand(d.as<JsonObjectConst>(), 123, cmd));
+    d = validPacket(); d["scene"] = 0;
+    Lamp::encodeManual(d, true, settings);
+    assert(Lamp::decodeCommand(d.as<JsonObjectConst>(), 123, cmd));
+    assert(measureJson(d) < Config::PACKET_BYTES);
+}
 int main() {
-    testMapping(); testMotionAndEffects(); testPower(); testProtocol();
-    std::cout << "PASS: LED mapping, scene effects, motion limits, current estimate, packet validation, retries/sequence rollover\n";
+    testMapping(); testMotionAndEffects(); testPower(); testProtocol(); testManual();
+    std::cout << "PASS: LED mapping, scene effects, motion limits, current estimate, packet validation, manual colors/angles, retries/sequence rollover\n";
 }

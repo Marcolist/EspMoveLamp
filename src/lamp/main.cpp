@@ -14,6 +14,8 @@ Adafruit_NeoPixel strips[Config::LED_OUTPUTS];
 Lamp::RGB frame[Config::LED_COUNT];
 uint8_t sceneId = 0, brightness = Config::INITIAL_BRIGHTNESS;
 bool motion = false, servoAttached = false, udpReady = false;
+bool manual = false;
+Lamp::ManualSettings manualSettings;
 float angle = Config::SERVO_HOME_DEG;
 uint32_t sceneStarted = 0, servoTick = 0, ledTick = 0;
 Lamp::CommandGate commandGate;
@@ -48,7 +50,7 @@ void updateServo(uint32_t now) {
         servoAttached = true;
     }
     if (sceneId != 0) {
-        const float target = Lamp::targetAngle(Lamp::SCENES[sceneId], now - sceneStarted,
+        const float target = manual ? manualSettings.target : Lamp::targetAngle(Lamp::SCENES[sceneId], now - sceneStarted,
                                               Config::SERVO_MIN_DEG, Config::SERVO_MAX_DEG);
         angle = Lamp::approach(angle, target, Config::SERVO_SPEED_DPS * dt);
     }
@@ -62,7 +64,8 @@ void updateLEDs(uint32_t now) {
     for (uint8_t s = 0; s < Config::SECTIONS; ++s) {
         for (uint8_t r = 0; r < Config::ROWS_PER_SECTION; ++r) {
             for (uint16_t p = 0; p < Config::LEDS_PER_ROW; ++p) {
-                auto c = Lamp::color(Lamp::SCENES[sceneId].effect, now - sceneStarted,
+                auto c = sceneId != 0 && manual ? Lamp::manualColor(manualSettings, s) :
+                         Lamp::color(Lamp::SCENES[sceneId].effect, now - sceneStarted,
                                      s, r, p, Config::LEDS_PER_ROW);
                 uint16_t physical = Config::REVERSE_STRIP[s] ? Config::LEDS_PER_ROW - 1 - p : p;
                 uint16_t index = Lamp::pixelIndex(s, r, physical, Config::ROWS_PER_SECTION,
@@ -99,6 +102,7 @@ void reply(IPAddress ip, uint16_t port, uint32_t session, uint32_t seq, bool ack
     doc["brightness"] = brightness;
     doc["applied"] = appliedBrightness;
     doc["motion"] = motion;
+    Lamp::encodeManual(doc, manual, manualSettings);
     doc["angle"] = angle; // commanded angle, no position sensor
     doc["leds"] = Config::LED_COUNT;
     udp.beginPacket(ip, port);
@@ -132,6 +136,8 @@ void receive() {
             sceneId = cmd.scene;
             brightness = cmd.brightness;
             motion = cmd.motion;
+            manual = cmd.manual;
+            manualSettings = cmd.settings;
             Serial.printf("Scene %u, brightness %u, motion %s\n", sceneId, brightness, motion ? "on" : "off");
         }
         // Duplicate retries acknowledge without restarting the animation.
