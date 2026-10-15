@@ -2,6 +2,8 @@
 
 The lamp uses a **1 m 2040 aluminum extrusion**, four LED strips and two printed stands. Viewed from the desk, the **DS3225 servo, 5 V power supply and lamp ESP32** sit in the left stand; the right stand supports the passive axle. The rotation axis follows one of the extrusion's two core holes, intentionally offset from the center of the 2040 cross-section. The CYD touchscreen remains in a separate enclosure.
 
+![Matching housing assemblies, shown at the same scale](housings-preview.png)
+
 ![Internal component layout](layout.png)
 
 ![Printable parts](parts-preview.png)
@@ -15,7 +17,7 @@ The lamp uses a **1 m 2040 aluminum extrusion**, four LED strips and two printed
 | `left_electronics_base.stl` | 1 | Left base, servo mount, PSU supports, controller mounting |
 | `left_electronics_cover.stl` | 1 | Removable ventilated left cover |
 | `left_ds3225_servo_mount.stl` | 1 | Separate axially adjustable servo bracket |
-| `right_axle_base.stl` | 1 | Compact passive right support |
+| `right_axle_base.stl` | 1 | Passive right support |
 | `right_cover.stl` | 1 | Right cover |
 | `servo_rear_coupling_disc.stl` | 1 | Rear servo-side coupling disc |
 | `axle_rear_coupling_disc.stl` | 1 | Rear passive axle disc |
@@ -29,14 +31,14 @@ All STL units are **millimeters**. Editable source: [`../cad/EspMoveLamp.scad`](
 
 ## Geometry and arrangement
 
-- Left stand: **160 × 190 × 100 mm**; right stand: **70 × 100 × 90 mm**, including bases.
+- Left stand: **220 × 130 × 90 mm**; right stand: **70 × 130 × 90 mm**, including bases.
 - Common axle center: **53 mm above the base**, **44 mm behind the front edge**.
 - Round coupling discs: **72 mm diameter**; rear portion 13 mm, front portion 8 mm plus 12 mm sleeve.
 - Planned 5 V / 10 A PSU envelope: **110 × 80 × 36 mm**. Supports are 4 mm above the 6 mm base; nominal vertical bracket clearance is 0.8 mm.
-- The rear taper belongs to the outer housing. The PSU mounting region ends before it to maintain clearance.
+- The PSU sits beside the servo along the width; the ESP32 carrier sits behind the servo. Both stands use the same side contour. The PSU mounting region ends before the rear taper.
 - The base closes the previously open lower U-shaped cutout. The cover remains removable upwards; this passage is not a bearing.
 
-The left and right stands have different widths. Do not scale the complete left cover to match the right stand; the shared axle height must remain unchanged.
+Both stands have the same 130 mm depth, 90 mm height and side contour. Only the widths differ: 220 mm left, 70 mm right. Axle openings and mounting interfaces are not scaled; the common axle height remains 53 mm.
 
 ## Lamp ESP32 board
 

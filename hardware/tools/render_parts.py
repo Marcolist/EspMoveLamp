@@ -7,7 +7,7 @@ p=ROOT/'stl'
 font_path=font_manager.findfont('DejaVu Sans')
 font=ImageFont.truetype(font_path,17)
 big=ImageFont.truetype(font_path,24)
-parts=[('left_electronics_base','LEFT: base / closed cutout',False),('left_electronics_cover','LEFT: cover / ventilation',True),('right_axle_base','RIGHT: axle base',False),('psu_terminal_cover','Separate terminal cover',True),('esp32_pcb_carrier','ESP32: adjustable PCB carrier',False),('profile_front_coupling_disc_2x','Four LED slot entries',False)]
+parts=[('left_electronics_base','LEFT: base / closed cutout',False),('left_electronics_cover','LEFT: cover / ventilation',True),('right_axle_base','RIGHT: axle base',False),('psu_terminal_cover','Separate terminal cover',True),('esp32_pcb_carrier','ESP32: adjustable PCB carrier',False),('right_cover','RIGHT: matching side contour',True)]
 canvas=Image.new('RGB',(1500,1050),'#f5f3ee');d=ImageDraw.Draw(canvas);d.text((45,22),'EspMoveLamp v0.9 | Printed parts / fit prototype',font=big,fill='#203549')
 for idx,(name,label,below) in enumerate(parts):
  t=read_stl(p/(name+'.stl'))

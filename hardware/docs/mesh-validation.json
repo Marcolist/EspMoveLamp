@@ -2,21 +2,21 @@
   "left_electronics_base": {
     "closed_manifold_edges": true,
     "surface_components": 1,
-    "triangles": 5916,
+    "triangles": 5886,
     "size_mm": [
-      160.0,
-      190.0,
-      50.0
+      220.0,
+      130.0,
+      55.0
     ]
   },
   "left_electronics_cover": {
     "closed_manifold_edges": true,
     "surface_components": 1,
-    "triangles": 7304,
+    "triangles": 2080,
     "size_mm": [
-      160.0,
-      190.0,
-      94.0
+      220.0,
+      130.0,
+      84.0
     ]
   },
   "left_ds3225_servo_mount": {
@@ -35,17 +35,17 @@
     "triangles": 3044,
     "size_mm": [
       70.0,
-      100.0,
+      130.0,
       62.0
     ]
   },
   "right_cover": {
     "closed_manifold_edges": true,
     "surface_components": 1,
-    "triangles": 3952,
+    "triangles": 1676,
     "size_mm": [
       70.0,
-      100.0,
+      130.0,
       84.0
     ]
   },
@@ -94,7 +94,7 @@
     "surface_components": 1,
     "triangles": 1384,
     "size_mm": [
-      80.0,
+      76.0,
       42.0,
       6.0
     ]

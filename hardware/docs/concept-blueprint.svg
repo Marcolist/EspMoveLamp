@@ -6,7 +6,7 @@
 <!-- Long light bar in elevation; only two END supports, left larger than right -->
 <rect x="232" y="220" width="825" height="35" rx="2"/><path d="M234 230H1055M234 245H1055" stroke="#f5b975" stroke-width="3"/>
 <path d="M45 311V250Q45 216 66 186Q100 141 138 149Q173 152 189 197L212 258V311Z"/>
-<path d="M1083 311V253Q1083 222 1100 193Q1123 155 1148 164Q1174 175 1192 215L1213 262V311Z"/>
+<path d="M1083 311V250Q1083 216 1099 186Q1126 141 1155 149Q1182 152 1194 197L1213 258V311Z"/>
 <path d="M45 311H212M1083 311H1213"/>
 <circle cx="189" cy="236" r="7" stroke="#7ee7bd"/><circle cx="1105" cy="236" r="7" stroke="#7ee7bd"/>
 <path d="M213 235H231M1057 235H1082"/>
@@ -30,12 +30,12 @@
 <g fill="#d8f0ff" font-size="14"><text x="125" y="42" text-anchor="middle">20 mm</text><text x="179" y="111">40 mm</text><text x="14" y="192" fill="#83c9ef">Two LED rows on the front 40 mm face</text><text x="14" y="214" fill="#b0c9d9">One LED row on top and one on bottom</text><text x="14" y="236" fill="#b0c9d9">Green: off-center rotation axis</text></g>
 </g>
 <g font-family="Arial,Helvetica,sans-serif"><text x="486" y="451" font-size="18" fill="#e0f3ff">END-MOUNTED MECHANISM</text>
-<text x="486" y="486" font-size="15" fill="#b4d3e5">Left printed enclosure: 160 × 190 × 100 mm</text>
-<text x="486" y="515" font-size="15" fill="#b4d3e5">Right printed enclosure: 70 × 100 × 90 mm</text>
+<text x="486" y="486" font-size="15" fill="#b4d3e5">Left printed enclosure: 220 × 130 × 90 mm</text>
+<text x="486" y="515" font-size="15" fill="#b4d3e5">Right printed enclosure: 70 × 130 × 90 mm</text>
 <text x="486" y="544" font-size="15" fill="#b4d3e5">Axle height: 53 mm above base</text>
 <text x="486" y="573" font-size="15" fill="#b4d3e5">Axis offset: one 2040 core hole, not centered</text>
 <text x="486" y="610" font-size="15" fill="#7bd3ff">Servo drive at LEFT end · passive shaft at RIGHT end</text>
-<text x="486" y="642" font-size="14" fill="#b4d3e5">Four concealed LED cable passages enter the left housing</text></g>
+<text x="486" y="642" font-size="14" fill="#b4d3e5">Internal PSU beside servo · ESP32 behind servo</text></g>
 <path d="M50 688H1230" stroke="#2b5b7b"/><text x="50" y="716" font-family="Arial" font-size="13" fill="#8fb7d0">REFERENCE: hardware/cad/EspMoveLamp.scad · v0.9 geometry · not a manufacturing drawing</text>
 <g font-family="Arial,Helvetica,sans-serif">
 <text x="50" y="761" font-size="14" fill="#83c9ef" letter-spacing="2">CONTROL &amp; DATA FLOW</text>

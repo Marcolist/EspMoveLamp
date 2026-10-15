@@ -1,6 +1,38 @@
 [
   {
-    "check": "collision_hood_parts",
+    "check": "collision_right_hood_base",
+    "empty": true
+  },
+  {
+    "check": "collision_parts_psu",
+    "empty": true
+  },
+  {
+    "check": "collision_shroud_carrier",
+    "empty": true
+  },
+  {
+    "check": "collision_carrier_servo",
+    "empty": true
+  },
+  {
+    "check": "collision_hood_base",
+    "empty": true
+  },
+  {
+    "check": "collision_hood_servo",
+    "empty": true
+  },
+  {
+    "check": "collision_hood_carrier",
+    "empty": true
+  },
+  {
+    "check": "collision_hood_shroud",
+    "empty": true
+  },
+  {
+    "check": "collision_hood_straps",
     "empty": true
   },
   {

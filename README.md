@@ -96,9 +96,11 @@ The current **v0.9 prototype** lives in [`hardware/`](hardware/docs/assembly.md)
 - [Assembly notes and fit assumptions](hardware/docs/assembly.md)
 - Export and geometry-check scripts in `hardware/tools/`
 
+![Matching compact housings](hardware/docs/housings-preview.png)
+
 The rotation axis is deliberately **offset**, aligned with one of the extrusion's two core holes. This gives the lamp a distinctive fold-up motion rather than merely spinning about its center.
 
-The left base is approximately **160 × 190 × 100 mm**, the right base **70 × 100 × 90 mm**. Four concealed LED cable channels feed into the left housing. Dimensions and clearances are provisional: test the actual servo horn, PCB, connectors, supply, cable bend radius, and full motion envelope before committing to final prints.
+The left base is approximately **220 × 130 × 90 mm**, the right base **70 × 130 × 90 mm**. Four concealed LED cable channels feed into the left housing. Dimensions and clearances are provisional: test the actual servo horn, PCB, connectors, supply, cable bend radius, and full motion envelope before committing to final prints.
 
 The passive right axle is a sliding support. The left servo still carries lateral load; its advertised torque rating is **not** a side-load rating. Verify alignment and wear in the real assembly.
 
