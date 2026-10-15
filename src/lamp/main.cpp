@@ -6,6 +6,7 @@
 #include "network.h"
 #include "protocol.h"
 #include "scenes.h"
+#include "motion.h"
 
 namespace {
 Network network(true);
@@ -15,12 +16,14 @@ Lamp::RGB frame[Config::LED_COUNT];
 uint8_t sceneId = 0, brightness = Config::INITIAL_BRIGHTNESS;
 bool motion = false, servoAttached = false, udpReady = false;
 bool manual = false;
+Lamp::ReferenceReturn parking;
 Lamp::ManualSettings manualSettings;
 float angle = Config::SERVO_HOME_DEG;
 uint32_t sceneStarted = 0, servoTick = 0, ledTick = 0;
 Lamp::CommandGate commandGate;
 uint8_t appliedBrightness = 0;
 uint32_t bootId;
+uint32_t selectionId = 0;
 
 void writeServo() {
     float degrees = Config::SERVO_REVERSED ? Config::SERVO_RANGE_DEG - angle : angle;
@@ -34,7 +37,7 @@ void updateServo(uint32_t now) {
     // Cap dt so delayed network processing cannot create a large position jump.
     float dt = fminf(float(uint32_t(now - servoTick)) / 1000, .05f);
     servoTick = now;
-    if (!motion) {
+    if (!motion && !parking.active()) {
         if (servoAttached) {
             ledcDetachPin(Config::SERVO_PIN);
             pinMode(Config::SERVO_PIN, OUTPUT);
@@ -49,12 +52,13 @@ void updateServo(uint32_t now) {
         ledcAttachPin(Config::SERVO_PIN, Config::SERVO_PWM_CHANNEL);
         servoAttached = true;
     }
-    if (sceneId != 0) {
-        const float target = manual ? manualSettings.target : Lamp::targetAngle(Lamp::SCENES[sceneId], now - sceneStarted,
+    if (sceneId != 0 || parking.active()) {
+        const float target = parking.active() ? Config::SERVO_REFERENCE_DEG : manual ? manualSettings.target : Lamp::targetAngle(Lamp::SCENES[sceneId], now - sceneStarted,
                                               Config::SERVO_MIN_DEG, Config::SERVO_MAX_DEG);
         angle = Lamp::approach(angle, target, Config::SERVO_SPEED_DPS * dt);
     }
     writeServo();
+    parking.tick(now,angle);
 }
 
 void updateLEDs(uint32_t now) {
@@ -99,9 +103,11 @@ void reply(IPAddress ip, uint16_t port, uint32_t session, uint32_t seq, bool ack
     doc["seq"] = seq;
     doc["ack"] = ack;
     doc["scene"] = sceneId;
+    doc["selection"] = selectionId;
     doc["brightness"] = brightness;
     doc["applied"] = appliedBrightness;
     doc["motion"] = motion;
+    doc["parking"] = parking.active();
     Lamp::encodeManual(doc, manual, manualSettings);
     doc["angle"] = angle; // commanded angle, no position sensor
     doc["leds"] = Config::LED_COUNT;
@@ -134,8 +140,10 @@ void receive() {
         if (accept) {
             if (sceneId != cmd.scene) sceneStarted = millis();
             sceneId = cmd.scene;
+            selectionId = cmd.selection;
             brightness = cmd.brightness;
-            motion = cmd.motion;
+            motion = cmd.scene != 0 && cmd.motion;
+            if (cmd.scene == 0) parking.start(); else parking.cancel();
             manual = cmd.manual;
             manualSettings = cmd.settings;
             Serial.printf("Scene %u, brightness %u, motion %s\n", sceneId, brightness, motion ? "on" : "off");

@@ -15,6 +15,7 @@ subprocess.run([
     "g++", "-std=c++17", "-Wall", "-Wextra", "-Werror", "-pedantic",
     *sanitizers, "-g",
     "-I", str(root / "include"), "-I", str(json_headers),
+    "-I", str(root / "tests/stubs"), "-I", str(root / "src/cyd"),
     str(root / "tests/core_test.cpp"), "-o", str(out),
 ], check=True)
 subprocess.run([str(out)], check=True)

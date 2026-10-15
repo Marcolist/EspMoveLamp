@@ -37,6 +37,7 @@ inline RGB manualColor(const ManualSettings& settings, uint8_t section) {
 }
 struct Command {
     uint32_t session, seq;
+    uint32_t selection = 0;
     uint8_t scene, brightness;
     bool motion;
     bool manual = false;
@@ -52,11 +53,12 @@ inline bool decodeCommand(JsonObjectConst data, uint32_t boot, Command& out) {
         !data["session"].is<uint32_t>() || !data["seq"].is<uint32_t>() ||
         !data["scene"].is<uint8_t>() || !data["brightness"].is<uint8_t>() ||
         !data["motion"].is<bool>() || data["scene"].as<unsigned>() >= SCENE_COUNT ||
-        data["session"] == 0) return false;
+        data["session"] == 0 || !data["selection"].is<uint32_t>() || data["selection"].as<uint32_t>() > INT32_MAX) return false;
     bool manual;
     ManualSettings settings;
     if (!decodeManual(data, manual, settings)) return false;
     out.session = data["session"];
+    out.selection = data["selection"];
     out.seq = data["seq"];
     out.scene = data["scene"];
     out.brightness = data["brightness"];
