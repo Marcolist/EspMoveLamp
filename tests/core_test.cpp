@@ -2,6 +2,9 @@
 #include <iostream>
 #include <set>
 #include "protocol.h"
+#include "library.h"
+#include "motion.h"
+#include "library_store.h"
 
 void testMapping() {
     static_assert(Config::LED_COUNT == 120, "Hardware has 120 LEDs");
@@ -67,9 +70,11 @@ JsonDocument validPacket() {
     d["boot"] = 123;
     d["session"] = 456;
     d["seq"] = 1;
+    d["selection"] = 1;
     d["scene"] = 4;
     d["brightness"] = 255;
     d["motion"] = true;
+    Lamp::encodeManual(d, false, Lamp::ManualSettings{});
     return d;
 }
 void testProtocol() {
@@ -78,7 +83,7 @@ void testProtocol() {
     assert(Lamp::decodeCommand(d.as<JsonObjectConst>(), 123, cmd));
     assert(cmd.scene == 4 && cmd.brightness == 255 && cmd.motion && cmd.session == 456);
     assert(!Lamp::decodeCommand(d.as<JsonObjectConst>(), 124, cmd)); // restarted lamp
-    for (const char* missing : {"v", "type", "key", "boot", "session", "seq", "scene", "brightness", "motion"}) {
+    for (const char* missing : {"v", "type", "key", "boot", "session", "seq", "scene", "brightness", "motion", "manual", "target", "colors", "selection"}) {
         auto invalid = validPacket();
         invalid.remove(missing);
         assert(!Lamp::decodeCommand(invalid.as<JsonObjectConst>(), 123, cmd));
@@ -109,7 +114,151 @@ void testProtocol() {
     assert(gate.inspect(100, UINT32_MAX) == Order::Stale);
     assert(gate.inspect(101, 1) == Order::New); // new controller boot
 }
-int main() {
-    testMapping(); testMotionAndEffects(); testPower(); testProtocol();
-    std::cout << "PASS: LED mapping, scene effects, motion limits, current estimate, packet validation, retries/sequence rollover\n";
+void testManual() {
+    Lamp::Command cmd{};
+    auto d = validPacket();
+    Lamp::ManualSettings settings;
+    settings.target = Config::SERVO_MAX_DEG;
+    settings.colors[0] = 0xff0000;
+    settings.colors[1] = 0x00ff00;
+    settings.colors[2] = 0x0000ff;
+    Lamp::encodeManual(d, true, settings);
+    assert(Lamp::decodeCommand(d.as<JsonObjectConst>(), 123, cmd));
+    assert(cmd.manual && cmd.settings.target == Config::SERVO_MAX_DEG);
+    assert(Lamp::manualColor(cmd.settings, 0).r == 255);
+    assert(Lamp::manualColor(cmd.settings, 1).g == 255);
+    assert(Lamp::manualColor(cmd.settings, 2).b == 255);
+    assert(Lamp::manualColor(cmd.settings, 3).b == 255); // both front strips
+    d["target"] = Config::SERVO_MIN_DEG;
+    assert(Lamp::decodeCommand(d.as<JsonObjectConst>(), 123, cmd));
+    for (float invalid : {Config::SERVO_MIN_DEG - 1, Config::SERVO_MAX_DEG + 1, INFINITY, NAN}) {
+        d["target"] = invalid;
+        assert(!Lamp::decodeCommand(d.as<JsonObjectConst>(), 123, cmd));
+    }
+    for (const char* invalid : {"true", "\"90\"", "null", "{}", "[]"}) {
+        d = validPacket();
+        JsonDocument value;
+        assert(!deserializeJson(value, invalid));
+        d["target"].set(value.as<JsonVariantConst>());
+        assert(!Lamp::decodeCommand(d.as<JsonObjectConst>(), 123, cmd));
+    }
+    for (const char* invalid : {"[]", "[0,0]", "[0,0,0,0]", "[0,0,-1]", "[0,0,16777216]", "[0,0,1.5]", "[0,0,true]", "[0,0,\"255\"]", "null", "{}"}) {
+        d = validPacket();
+        JsonDocument value;
+        assert(!deserializeJson(value, invalid));
+        d["colors"].set(value.as<JsonVariantConst>());
+        assert(!Lamp::decodeCommand(d.as<JsonObjectConst>(), 123, cmd));
+    }
+    d = validPacket(); d["manual"] = 1;
+    assert(!Lamp::decodeCommand(d.as<JsonObjectConst>(), 123, cmd));
+    d = validPacket(); d["v"] = 1;
+    assert(!Lamp::decodeCommand(d.as<JsonObjectConst>(), 123, cmd));
+    d = validPacket(); d["scene"] = 0;
+    Lamp::encodeManual(d, true, settings);
+    assert(Lamp::decodeCommand(d.as<JsonObjectConst>(), 123, cmd));
+    assert(measureJson(d) < Config::PACKET_BYTES);
+}
+void testLibrary() {
+    auto library=Lamp::defaultLibrary();
+    assert(Lamp::validLibrary(library));
+    assert(library.count==4 && library.scenes[0].settings.colors[2]==0xfff3e4);
+    assert(library.scenes[1].settings.colors[0]==0xff0818 && library.scenes[1].settings.colors[2]==0);
+    assert(library.scenes[2].motion && library.scenes[2].settings.target==Config::SERVO_MAX_DEG);
+    assert(library.scenes[3].preset==5 && library.scenes[3].motion);
+    JsonDocument doc; Lamp::encodeLibrary(doc,library);
+    Lamp::SceneLibrary decoded;
+    assert(Lamp::decodeLibrary(doc.as<JsonObjectConst>(),decoded));
+    assert(decoded.count==4 && decoded.favorites[3]==4);
+    const auto& s=decoded.scenes[0];
+    assert(Lamp::sceneMatches(s,1,s.brightness,s.motion,true,s.settings));
+    assert(!Lamp::sceneMatches(s,0,s.brightness,s.motion,true,s.settings));
+    assert(!Lamp::sceneMatches(s,1,s.brightness-1,s.motion,true,s.settings));
+    auto altered=s.settings; altered.colors[2]^=1;
+    assert(!Lamp::sceneMatches(s,1,s.brightness,s.motion,true,altered));
+    for (const char* field:{"id","name","icon","tint","preset","brightness","motion","manual","target","colors"}) {
+        JsonDocument bad;Lamp::encodeLibrary(bad,library);bad["scenes"][0].remove(field);
+        assert(!Lamp::decodeLibrary(bad.as<JsonObjectConst>(),decoded));
+    }
+    for (const char* invalid:{"-1","8","true","\"1\"","1.5"}) {
+        JsonDocument bad,v;Lamp::encodeLibrary(bad,library);assert(!deserializeJson(v,invalid));
+        bad["scenes"][0]["icon"].set(v.as<JsonVariantConst>());
+        assert(!Lamp::decodeLibrary(bad.as<JsonObjectConst>(),decoded));
+    }
+    JsonDocument bad; Lamp::encodeLibrary(bad,library);bad["favorites"][1]=bad["favorites"][0];
+    assert(!Lamp::decodeLibrary(bad.as<JsonObjectConst>(),decoded));
+    bad.clear();Lamp::encodeLibrary(bad,library);bad["favorites"][0]=999;
+    assert(!Lamp::decodeLibrary(bad.as<JsonObjectConst>(),decoded));
+    bad.clear();Lamp::encodeLibrary(bad,library);bad["scenes"][1]["id"]=1;
+    assert(!Lamp::decodeLibrary(bad.as<JsonObjectConst>(),decoded));
+    bad.clear();Lamp::encodeLibrary(bad,library);bad["scenes"][0]["name"]="bad\nname";
+    assert(!Lamp::decodeLibrary(bad.as<JsonObjectConst>(),decoded));
+    bad.clear();Lamp::encodeLibrary(bad,library);bad["scenes"][0]["name"]=std::string(33,'x');
+    assert(!Lamp::decodeLibrary(bad.as<JsonObjectConst>(),decoded));
+    bad.clear();Lamp::encodeLibrary(bad,library);bad["scenes"][0]["target"]=Config::SERVO_MAX_DEG+1;
+    assert(!Lamp::decodeLibrary(bad.as<JsonObjectConst>(),decoded));
+    library.count=Lamp::MAX_SAVED_SCENES;
+    for(uint8_t i=4;i<library.count;++i){library.scenes[i]=library.scenes[0];library.scenes[i].id=i+1;}
+    assert(Lamp::validLibrary(library));
+    JsonDocument full;Lamp::encodeLibrary(full,library);
+    assert(measureJson(full)<24576);
+    assert(Lamp::decodeLibrary(full.as<JsonObjectConst>(),decoded));
+    assert(decoded.count==32 && decoded.scenes[31].id==32);
+    full["scenes"].as<JsonArray>().add(full["scenes"][0]);
+    assert(!Lamp::decodeLibrary(full.as<JsonObjectConst>(),decoded));
+}
+void testReferenceReturn() {
+    Lamp::ReferenceReturn parking;
+    assert(!parking.active()); // power-on must not enable the servo
+    parking.start();
+    parking.tick(1000,Config::SERVO_MAX_DEG);
+    parking.tick(10000,Config::SERVO_MAX_DEG);
+    assert(parking.active()); // elapsed time alone cannot finish the move
+    parking.tick(11000,Config::SERVO_REFERENCE_DEG);
+    parking.tick(11699,Config::SERVO_REFERENCE_DEG);
+    assert(parking.active());
+    parking.tick(11700,Config::SERVO_REFERENCE_DEG);
+    assert(!parking.active());
+    parking.start();parking.tick(UINT32_MAX-100,Config::SERVO_REFERENCE_DEG);
+    parking.tick(599,Config::SERVO_REFERENCE_DEG);
+    assert(!parking.active()); // 700ms including millis wrap
+    parking.start();parking.cancel();assert(!parking.active());
+}
+void testStorage() {
+    MockNVS::values.clear();
+    Lamp::SceneLibrary loaded;
+    assert(!LibraryStore::load(loaded));
+    auto library=Lamp::defaultLibrary();
+    assert(LibraryStore::save(library));
+    assert(LibraryStore::load(loaded));
+    assert(loaded.count==4 && strcmp(loaded.scenes[0].name,"Meeting")==0);
+    library.favorites[0]=4;library.favorites[3]=1;library.revision++;
+    library.scenes[0].settings.colors[2]=0xffffff;
+    assert(LibraryStore::save(library));
+    Lamp::SceneLibrary restarted;
+    assert(LibraryStore::load(restarted));
+    assert(restarted.favorites[0]==4 && restarted.scenes[0].settings.colors[2]==0xffffff);
+    MockNVS::failWrite=true;library.revision++;
+    assert(!LibraryStore::save(library));
+    assert(LibraryStore::load(restarted));assert(restarted.revision==2);
+    auto& blob=MockNVS::values["move-scenes/library"];
+    blob.back()^=0xff;assert(!LibraryStore::load(restarted));
+    blob.pop_back();assert(!LibraryStore::load(restarted));
+}
+int main(int argc, char** argv) {
+    if(argc>1 && strcmp(argv[1],"--validate")==0) {
+        JsonDocument doc;
+        if(deserializeJson(doc,std::cin))return 1;
+        Lamp::SceneLibrary candidate;
+        if(!Lamp::decodeLibrary(doc.as<JsonObjectConst>(),candidate))return 1;
+        candidate.revision++;
+        JsonDocument result;Lamp::encodeLibrary(result,candidate);
+        std::string json;serializeJson(result,json);std::cout<<json;return 0;
+    }
+    if(argc>1 && strcmp(argv[1],"--fixture")==0) {
+        JsonDocument doc;Lamp::encodeLibrary(doc,Lamp::defaultLibrary());
+        std::string json;serializeJson(doc,json);std::cout<<json;return 0;
+    }
+    testMapping(); testMotionAndEffects(); testPower(); testProtocol(); testManual(); testLibrary(); testReferenceReturn();
+    testStorage();
+    std::cout << "PASS: LEDs, motion, packets, scene library, favorites, persistence/failure recovery, reference return\n";
 }

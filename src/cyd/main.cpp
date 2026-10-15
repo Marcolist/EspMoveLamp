@@ -5,6 +5,9 @@
 #include <TFT_eSPI.h>
 #include <WiFiUdp.h>
 #include <XPT2046_Touchscreen.h>
+#include <WebServer.h>
+#include "library_store.h"
+#include "web_ui.h"
 #include "config.h"
 #include "network.h"
 #include "protocol.h"
@@ -23,12 +26,26 @@ uint32_t session, sequence = 0, lampBoot = 0;
 uint32_t lastSeen = 0, lastDiscover = 0, lastPaint = 0;
 uint8_t confirmedScene = 0, confirmedBrightness = Config::INITIAL_BRIGHTNESS;
 bool confirmedMotion = false;
+bool confirmedManual = false, manualTab = false, draftEdited = false;
+Lamp::ManualSettings confirmedSettings, draft;
+uint8_t draftBrightness = Config::INITIAL_BRIGHTNESS, selectedSide = 0, resumeScene = 1;
+bool draftMotion = false;
+Lamp::SceneLibrary library = Lamp::defaultLibrary();
+WebServer web(80);
+uint32_t confirmedSelection = 0, resumeSelection = 1;
+bool confirmedParking = false;
+IPAddress editorIP(192, 168, 8, 1);
+constexpr uint32_t PALETTE[] = {0x000000, 0xffdcaa, 0xffffff, 0xff7828,
+                                0xf04460, 0xab60ff, 0x3280ff, 0x24c8aa};
 const char* message = "Suche Lampe...";
 
 struct Command {
     bool active = false;
     uint8_t scene = 0, brightness = 0, attempts = 0;
     bool motion = false;
+    bool manual = false;
+    Lamp::ManualSettings settings;
+    uint32_t selection = 0;
     uint32_t sequence = 0, sentAt = 0;
 } pending;
 
@@ -46,20 +63,200 @@ bool wasPressed = false;
 uint32_t pressedAt = 0;
 uint32_t releasedAt = 0;
 
-constexpr uint16_t BG = 0x0842, CARD = 0x18e4, TEXT = 0xef7d, MUTED = 0x8c71;
-constexpr uint16_t ACCENT = 0x05f5, WARNING = 0xfd20;
+constexpr uint16_t BG = 0x0845, CARD = 0x1929, TEXT = 0xf79c, MUTED = 0x94b2;
+constexpr uint16_t ACCENT = 0xa6b4, WARNING = 0xfd20;
+constexpr uint16_t LINE = 0x39c7;
+
+uint16_t rgb565(uint32_t rgb) {
+    return tft.color565(rgb >> 16, rgb >> 8, rgb);
+}
 
 void label(const String& text, int x, int y, uint8_t font, uint16_t color, uint16_t bg) {
     tft.setTextDatum(TL_DATUM);
     tft.setTextColor(color, bg);
     tft.drawString(text, x, y, font);
 }
-void button(int x, int y, int w, int h, const String& text, uint16_t border) {
-    tft.fillRoundRect(x, y, w, h, 4, CARD);
-    tft.drawRoundRect(x, y, w, h, 4, border);
+void button(int x, int y, int w, int h, const String& text, uint16_t border,
+            uint16_t fill = CARD, uint16_t ink = TEXT, uint8_t font = 2) {
+    tft.fillRoundRect(x, y, w, h, 7, fill);
+    tft.drawRoundRect(x, y, w, h, 7, border);
     tft.setTextDatum(MC_DATUM);
-    tft.setTextColor(TEXT, CARD);
-    tft.drawString(text, x + w / 2, y + h / 2, 2);
+    tft.setTextColor(ink, fill);
+    tft.drawString(text, x + w / 2, y + h / 2, font);
+}
+
+// A consistent two-pixel line style, drawn natively at the display resolution.
+void iconLine(int x0, int y0, int x1, int y1, uint16_t color) {
+    tft.drawLine(x0, y0, x1, y1, color);
+    if (abs(x1 - x0) >= abs(y1 - y0)) tft.drawLine(x0, y0 + 1, x1, y1 + 1, color);
+    else tft.drawLine(x0 + 1, y0, x1 + 1, y1, color);
+}
+void outlineSceneIcon(uint8_t icon, int cx, int cy, uint16_t color) {
+    if (icon == 0) { // Warm: sun
+        tft.drawCircle(cx, cy, 10, color);
+        tft.drawCircle(cx, cy, 9, color);
+        for (int i = 0; i < 8; ++i) {
+            float a = i * .78539816f;
+            iconLine(cx + lroundf(cosf(a) * 16), cy + lroundf(sinf(a) * 16),
+                     cx + lroundf(cosf(a) * 22), cy + lroundf(sinf(a) * 22), color);
+        }
+    } else if (icon == 1) { // Reading: open book
+        for (int side : {-1, 1}) {
+            iconLine(cx, cy - 11, cx + side * 10, cy - 16, color);
+            iconLine(cx + side * 10, cy - 16, cx + side * 23, cy - 13, color);
+            iconLine(cx + side * 23, cy - 13, cx + side * 23, cy + 15, color);
+            iconLine(cx + side * 23, cy + 15, cx + side * 10, cy + 12, color);
+            iconLine(cx + side * 10, cy + 12, cx, cy + 17, color);
+            for (int y : {-5, 3})
+                iconLine(cx + side * 6, cy + y, cx + side * 16, cy + y - 2, color);
+        }
+        iconLine(cx, cy - 11, cx, cy + 17, color);
+    } else if (icon == 2) { // Ocean: three flowing waves
+        for (int row = -1; row <= 1; ++row) {
+            for (int x = -23; x < 23; x += 2) {
+                int y0 = lroundf(sinf((x + 23) * .1366f) * 4);
+                int y1 = lroundf(sinf((x + 25) * .1366f) * 4);
+                iconLine(cx + x, cy + row * 11 + y0,
+                         cx + x + 2, cy + row * 11 + y1, color);
+            }
+        }
+    } else if (icon == 3) { // Candle
+        constexpr int8_t flame[][2] = {{0,-24},{-7,-15},{-7,-9},{-3,-4},
+                                       {3,-4},{7,-9},{6,-15},{0,-24}};
+        for (uint8_t i = 1; i < sizeof(flame) / sizeof(flame[0]); ++i)
+            iconLine(cx + flame[i-1][0], cy + flame[i-1][1],
+                     cx + flame[i][0], cy + flame[i][1], color);
+        tft.drawRoundRect(cx - 9, cy + 2, 19, 20, 3, color);
+        tft.drawRoundRect(cx - 8, cy + 3, 17, 18, 2, color);
+        iconLine(cx, cy - 2, cx, cy + 2, color);
+        iconLine(cx - 15, cy + 22, cx + 15, cy + 22, color);
+    } else if (icon == 4) { // Meeting camera
+        tft.drawRoundRect(cx - 24, cy - 15, 32, 30, 5, color);
+        tft.drawRoundRect(cx - 23, cy - 14, 30, 28, 4, color);
+        iconLine(cx + 8, cy - 6, cx + 23, cy - 14, color);
+        iconLine(cx + 23, cy - 14, cx + 23, cy + 14, color);
+        iconLine(cx + 23, cy + 14, cx + 8, cy + 6, color);
+    } else if (icon == 5) { // Heart, one continuous outline
+        constexpr int8_t points[][2] = {{0,-10},{-6,-17},{-14,-18},{-21,-13},{-23,-5},
+            {-20,3},{0,22},{20,3},{23,-5},{21,-13},{14,-18},{6,-17},{0,-10}};
+        for (uint8_t i = 1; i < sizeof(points)/sizeof(points[0]); ++i)
+            iconLine(cx + points[i-1][0], cy + points[i-1][1], cx + points[i][0], cy + points[i][1], color);
+    } else if (icon == 6) { // Indirect light / rising sun
+        for (int x = -14; x < 14; ++x) {
+            int y0 = -lroundf(sqrtf(196 - x*x));
+            int y1 = -lroundf(sqrtf(196 - (x+1)*(x+1)));
+            iconLine(cx+x, cy+9+y0, cx+x+1, cy+9+y1, color);
+        }
+        iconLine(cx-23, cy+13, cx+23, cy+13, color);
+        iconLine(cx, cy-24, cx, cy-17, color);
+        iconLine(cx-21, cy-13, cx-16, cy-8, color);
+        iconLine(cx+21, cy-13, cx+16, cy-8, color);
+        iconLine(cx, cy+24, cx, cy+19, color);
+    } else { // Four-point sparkle
+        constexpr int8_t points[][2] = {{0,-24},{7,-7},{24,0},{7,7},{0,24},{-7,7},{-24,0},{-7,-7},{0,-24}};
+        for (uint8_t i=1;i<sizeof(points)/sizeof(points[0]);++i)
+            iconLine(cx+points[i-1][0],cy+points[i-1][1],cx+points[i][0],cy+points[i][1],color);
+        iconLine(cx+19,cy-24,cx+19,cy-14,color); iconLine(cx+14,cy-19,cx+24,cy-19,color);
+    }
+}
+
+void sparkle(int cx,int cy,int radius,uint16_t color) {
+    int inner=radius/3;
+    tft.fillTriangle(cx,cy-radius,cx-inner,cy,cx+inner,cy,color);
+    tft.fillTriangle(cx,cy+radius,cx-inner,cy,cx+inner,cy,color);
+    tft.fillTriangle(cx-radius,cy,cx,cy-inner,cx,cy+inner,color);
+    tft.fillTriangle(cx+radius,cy,cx,cy-inner,cx,cy+inner,color);
+}
+void sceneIcon(uint8_t icon,int cx,int cy,uint16_t) {
+    const uint16_t white=rgb565(0xf5faff), gold=rgb565(0xffd778), blue=rgb565(0x3877d8);
+    if(icon==4) {
+        tft.fillTriangle(cx+8,cy-6,cx+25,cy-15,cx+25,cy+15,rgb565(0xc8e5f7));
+        tft.fillTriangle(cx+8,cy-6,cx+25,cy+15,cx+8,cy+6,rgb565(0xc8e5f7));
+        tft.fillRoundRect(cx-26,cy-17,38,34,8,rgb565(0xc9e8fa));
+        tft.fillRoundRect(cx-26,cy-19,38,31,8,white);
+        tft.fillCircle(cx-7,cy-3,12,rgb565(0x233e6b));
+        tft.fillCircle(cx-7,cy-3,9,rgb565(0x54baf0));
+        tft.fillCircle(cx-7,cy-3,5,blue);
+        tft.fillCircle(cx-10,cy-6,3,white);
+        tft.fillCircle(cx+5,cy-12,2,rgb565(0xf47d9b));
+    } else if(icon==5) {
+        uint16_t pink=rgb565(0xffd5e8);
+        tft.fillCircle(cx-10,cy-6,13,pink);tft.fillCircle(cx+10,cy-6,13,pink);
+        tft.fillTriangle(cx-23,cy-3,cx+23,cy-3,cx,cy+24,pink);
+        tft.fillTriangle(cx-12,cy+12,cx+12,cy+12,cx,cy+24,rgb565(0xf4a7ce));
+        tft.fillCircle(cx-14,cy-11,4,rgb565(0xfff3fb));
+        sparkle(cx+25,cy-22,6,gold);
+    } else if(icon==6) {
+        // Warm light above a pale lightbar, with small reflected highlights.
+        for(int row=-16;row<=0;++row) {
+            int half=lroundf(sqrtf(256-row*row));
+            tft.drawFastHLine(cx-half,cy+7+row,half*2+1,
+                rgb565(row < -7 ? 0xffebac : 0xffc85a));
+        }
+        tft.fillRoundRect(cx-25,cy+9,50,7,3,rgb565(0xdef6ec));
+        tft.fillRoundRect(cx-19,cy+18,38,3,1,rgb565(0x8ed7c3));
+        tft.fillRoundRect(cx-2,cy-27,4,8,2,white);
+        iconLine(cx-24,cy-14,cx-19,cy-9,white);
+        iconLine(cx+24,cy-14,cx+19,cy-9,white);
+        tft.fillCircle(cx-6,cy-1,3,rgb565(0xfff6d9));
+    } else if(icon==7) {
+        sparkle(cx+1,cy+1,25,rgb565(0x6544b6));
+        sparkle(cx-2,cy-2,24,rgb565(0xfff1bd));
+        sparkle(cx+20,cy-21,10,rgb565(0x94f3ed));
+        sparkle(cx-23,cy+18,8,rgb565(0xffb8df));
+        tft.fillCircle(cx+21,cy+19,3,white);
+        tft.fillCircle(cx-22,cy-19,2,white);
+    } else if(icon==0) {
+        outlineSceneIcon(icon,cx,cy,gold);
+        tft.fillCircle(cx,cy,11,gold);tft.fillCircle(cx-3,cy-3,6,rgb565(0xffecae));
+    } else if(icon==1) {
+        tft.fillRoundRect(cx-24,cy-16,49,33,4,rgb565(0xffefd3));
+        tft.fillRect(cx-2,cy-16,4,34,rgb565(0xbda0e6));
+        for(int y=-8;y<=8;y+=8) {
+            tft.fillRoundRect(cx-18,cy+y,11,2,1,rgb565(0xc09c7d));
+            tft.fillRoundRect(cx+7,cy+y,11,2,1,rgb565(0xc09c7d));
+        }
+    } else if(icon==2) {
+        for(int row=-1;row<=1;++row)for(int x=-24;x<24;++x) {
+            int y=lroundf(sinf((x+24)*.13f)*4)+row*12;
+            tft.drawFastVLine(cx+x,cy+y,5,rgb565(row<0?0xd3f7ff:row==0?0x90dfef:0x67bce7));
+        }
+    } else {
+        tft.fillRoundRect(cx-11,cy+2,23,22,4,rgb565(0xffe9cd));
+        tft.fillRect(cx+5,cy+4,4,17,rgb565(0xe8bfa7));
+        tft.fillCircle(cx,cy-8,8,gold);tft.fillTriangle(cx-8,cy-9,cx+8,cy-9,cx,cy-25,gold);
+        tft.fillCircle(cx,cy-6,4,rgb565(0xfff6d6));
+        tft.fillRoundRect(cx-17,cy+24,35,3,1,white);
+    }
+}
+
+uint32_t activeSavedId() {
+    if (!online || confirmedScene == 0) return 0;
+    const auto* s = Lamp::findScene(library, confirmedSelection);
+    return s && Lamp::sceneMatches(*s, confirmedScene, confirmedBrightness, confirmedMotion,
+                                   confirmedManual, confirmedSettings) ? s->id : 0;
+}
+uint16_t tileColor(uint32_t rgb, float factor) {
+    return tft.color565(uint8_t((rgb >> 16) * factor), uint8_t(((rgb >> 8) & 255) * factor), uint8_t((rgb & 255) * factor));
+}
+void sceneTile(const Lamp::SavedScene& scene, int x, int y, bool selected, bool waiting) {
+    tft.fillRoundRect(x+2, y+4, 120, 86, 16, 0x0022);
+    for (int row=0; row<86; ++row) {
+        int edge = 0;
+        if (row < 16) edge = 16-lroundf(sqrtf(256-(16-row)*(16-row)));
+        else if (row >=70) edge=16-lroundf(sqrtf(256-(row-69)*(row-69)));
+        tft.drawFastHLine(x+edge,y+row,120-edge*2,tileColor(scene.tint,.98f-row*.0047f));
+    }
+    if (selected || waiting) {
+        uint16_t ring=waiting ? WARNING : TEXT;
+        tft.drawRoundRect(x-2,y-2,124,90,18,ring);
+        tft.drawRoundRect(x-1,y-1,122,88,17,ring);
+    }
+    sceneIcon(scene.icon,x+60,y+43,0xffff);
+    if (selected) {
+        tft.fillCircle(x+103,y+14,8,0xffff);
+        iconLine(x+99,y+14,x+102,y+17,BG);iconLine(x+102,y+17,x+108,y+11,BG);
+    }
 }
 
 void drawCalibration() {
@@ -109,25 +306,47 @@ void loadCalibration() {
 
 void drawUI() {
     tft.fillScreen(BG);
-    label("MOVE / LAMP", 8, 2, 2, TEXT, BG);
-    label(pending.active ? "SENDET..." : online ? "VERBUNDEN" : "OFFLINE",
-          217, 2, 2, pending.active ? WARNING : online ? ACCENT : MUTED, BG);
-    String status = WiFi.status() == WL_CONNECTED ?
-        (online ? lampIP.toString() + "  " + message : String(message)) : "WLAN verbindet...";
-    label(status, 8, 23, 1, MUTED, BG);
-    for (uint8_t i = 0; i < Lamp::SCENE_COUNT; ++i) {
-        int x = 8 + (i % 2) * 156, y = 36 + (i / 2) * 34;
-        bool waiting = pending.active && pending.scene == i;
-        uint16_t edge = waiting ? WARNING : confirmedScene == i && online ? ACCENT : CARD;
-        button(x, y, 148, 29, String(Lamp::SCENES[i].name) + (waiting ? " ..." : ""), edge);
-        tft.fillCircle(x + 10, y + 14, 3, Lamp::SCENES[i].accent);
+    bool on = online && confirmedScene != 0;
+    int navY = manualTab ? 6 : 202;
+    button(224, navY, 84, 32, confirmedParking ? "..." : on ? "AN" : "AUS", pending.active ? WARNING : on ? ACCENT : LINE,
+           on ? ACCENT : CARD, on ? BG : TEXT, 2);
+    button(12, navY, 98, 32, "Szenen", manualTab ? BG : CARD,
+           manualTab ? BG : CARD, manualTab ? MUTED : TEXT);
+    button(118, navY, 98, 32, "Manuell", manualTab ? CARD : BG,
+           manualTab ? CARD : BG, manualTab ? TEXT : MUTED);
+    if (!manualTab) {
+        for (uint8_t i = 0; i < 4; ++i) {
+            const auto* s = Lamp::findScene(library,library.favorites[i]);
+            if (s) sceneTile(*s,24+(i%2)*152,8+(i/2)*96,activeSavedId()==s->id,
+                             pending.active && pending.selection==s->id);
+        }
+        return;
     }
-    button(8, 176, 38, 27, "-", MUTED);
-    button(274, 176, 38, 27, "+", MUTED);
-    const uint8_t level = pending.active ? pending.brightness : confirmedBrightness;
-    label("Licht " + String((unsigned(level) * 100 + 127) / 255) + "%", 115, 181, 2, TEXT, BG);
-    button(8, 209, 148, 25, confirmedMotion ? "Servo: AN" : "Servo: AUS", confirmedMotion ? ACCENT : MUTED);
-    button(164, 209, 148, 25, "ALLES STOPP", 0xf800);
+    label("Editor: 192.168.8.1",12,49,1,MUTED,BG);
+    const char* sides[] = {"Oben", "Unten", "Vorne"};
+    for (uint8_t i = 0; i < 3; ++i) {
+        button(12 + i * 100, 79, 96, 28, sides[i], selectedSide == i ? ACCENT : CARD);
+        tft.fillCircle(24 + i * 100, 93, 4, rgb565(draft.colors[i]));
+    }
+    for (uint8_t i = 0; i < 8; ++i) {
+        int x = 12 + i * 38;
+        uint16_t color = rgb565(PALETTE[i]);
+        tft.fillRoundRect(x, 114, 30, 28, 5, color);
+        if (i == 0) tft.drawLine(x + 8, 134, x + 22, 121, MUTED);
+        if (draft.colors[selectedSide] == PALETTE[i]) {
+            tft.drawRoundRect(x - 2, 112, 34, 32, 6, TEXT);
+        }
+    }
+    label("Winkel", 12, 156, 2, MUTED, BG);
+    button(112, 151, 38, 29, "-", CARD);
+    button(270, 151, 38, 29, "+", CARD);
+    label(String(int(lroundf(draft.target))) + " Grad", 174, 156, 2, TEXT, BG);
+    label("Helligkeit", 12, 190, 2, MUTED, BG);
+    button(112, 185, 38, 26, "-", CARD);
+    button(270, 185, 38, 26, "+", CARD);
+    label(String((unsigned(draftBrightness) * 100 + 127) / 255) + " %", 180, 190, 2, TEXT, BG);
+    button(12, 217, 144, 23, draftMotion ? "Servo an" : "Servo aus", draftMotion ? ACCENT : LINE);
+    button(164, 217, 144, 23, pending.active ? "Wird gesendet" : "Anwenden", ACCENT, ACCENT, BG);
 }
 
 void sendDocument(JsonDocument& doc, IPAddress ip) {
@@ -164,24 +383,35 @@ void transmit() {
     doc["scene"] = pending.scene;
     doc["brightness"] = pending.brightness;
     doc["motion"] = pending.motion;
+    doc["selection"] = pending.selection;
+    Lamp::encodeManual(doc, pending.manual, pending.settings);
     sendDocument(doc, lampIP);
     ++pending.attempts;
     pending.sentAt = millis();
 }
-void command(uint8_t scene, uint8_t brightness, bool motion) {
+bool command(uint8_t scene, uint8_t brightness, bool motion, bool manual,
+             const Lamp::ManualSettings& settings, uint32_t selection = 0) {
     if (!online || WiFi.status() != WL_CONNECTED) {
         message = "Lampe nicht erreichbar";
         dirty = true;
-        return; // Never queue a movement command while offline.
+        return false; // Never queue a movement command while offline.
     }
     pending.active = true;
     pending.scene = scene;
     pending.brightness = brightness;
     pending.motion = motion;
+    pending.manual = manual;
+    pending.settings = settings;
+    pending.selection = selection;
     pending.attempts = 0;
     pending.sequence = ++sequence;
     transmit();
     dirty = true;
+    return true;
+}
+bool activateScene(uint32_t id) {
+    const auto* s = Lamp::findScene(library,id);
+    return s && command(s->preset ? s->preset : 1,s->brightness,s->motion,s->preset==0,s->settings,s->id);
 }
 void receive(uint32_t now) {
     for (int n = 0; n < 4; ++n) {
@@ -198,21 +428,26 @@ void receive(uint32_t now) {
         JsonDocument doc;
         if (deserializeJson(doc, buffer, len)) continue;
         JsonObjectConst data = doc.as<JsonObjectConst>();
+        bool receivedManual;
+        Lamp::ManualSettings receivedSettings;
         if (!Lamp::validEnvelope(data) ||
             data["type"] != "status" || data["device"] != Lamp::DEVICE_ID ||
             !data["session"].is<uint32_t>() || !data["seq"].is<uint32_t>() ||
-            !data["ack"].is<bool>() ||
+            !data["ack"].is<bool>() || !data["selection"].is<uint32_t>() ||
+            data["selection"].as<uint32_t>() > INT32_MAX || !data["parking"].is<bool>() ||
             !data["boot"].is<uint32_t>() || !data["scene"].is<unsigned int>() ||
             !data["brightness"].is<unsigned int>() || !data["motion"].is<bool>() ||
             data["scene"].as<unsigned int>() >= Lamp::SCENE_COUNT ||
-            data["brightness"].as<unsigned int>() > 255) continue;
+            data["brightness"].as<unsigned int>() > 255 ||
+            !Lamp::decodeManual(data, receivedManual, receivedSettings)) continue;
         // Status from an older command must not overwrite a newer acknowledged state.
         bool heartbeat = data["session"] == 0 && data["seq"] == 0;
         bool matching = pending.active && data["session"] == session && data["seq"] == pending.sequence;
         if (!heartbeat && !matching) continue;
         bool changed = !online || confirmedScene != data["scene"].as<uint8_t>() ||
                        confirmedBrightness != data["brightness"].as<uint8_t>() ||
-                       confirmedMotion != data["motion"].as<bool>();
+                       confirmedMotion != data["motion"].as<bool>() || confirmedManual != receivedManual ||
+                       confirmedSelection != data["selection"].as<uint32_t>() || confirmedParking != data["parking"].as<bool>();
         const char* previousMessage = message;
         uint32_t boot = data["boot"];
         if (pending.active && lampBoot && boot != lampBoot) {
@@ -221,6 +456,7 @@ void receive(uint32_t now) {
             changed = true;
         } else if (matching) {
             pending.active = false;
+            if (data["ack"] == true && pending.manual) draftEdited = false;
             message = data["ack"] == true ? "Bestaetigt" : "Bitte erneut waehlen";
             changed = true;
         } else if (!pending.active) message = "Bereit";
@@ -231,29 +467,137 @@ void receive(uint32_t now) {
         confirmedScene = data["scene"];
         confirmedBrightness = data["brightness"];
         confirmedMotion = data["motion"];
+        confirmedManual = receivedManual;
+        confirmedSelection = data["selection"];
+        confirmedParking = data["parking"];
+        confirmedSettings = receivedSettings;
+        if (confirmedScene != 0) { resumeScene = confirmedScene; resumeSelection = confirmedSelection; }
+        if (!draftEdited) {
+            draft = confirmedSettings;
+            draftBrightness = confirmedBrightness;
+            draftMotion = confirmedMotion;
+        }
         dirty = dirty || changed || previousMessage != message;
     }
 }
 void handleTap(int x, int y) {
-    // Stop can supersede an unacknowledged command; the lamp rejects its older retries.
-    if (y >= 209 && y < 234 && x >= 164 && x < 312) {
-        command(0, confirmedBrightness, false);
+    // Power off supersedes a pending command and disables the servo as well.
+    int navY = manualTab ? 6 : 202;
+    if (x >= 224 && x < 308 && y >= navY && y < navY+32) {
+        bool stop = confirmedScene != 0 || pending.active;
+        command(stop ? 0 : resumeScene, confirmedBrightness, false, confirmedManual, confirmedSettings, stop ? 0 : resumeSelection);
+        return;
+    }
+    if (y >= navY && y < navY+32 && ((x >= 12 && x < 110) || (x >=118 && x<216))) {
+        manualTab = x >= 118;
+        dirty = true;
         return;
     }
     if (pending.active) return;
-    if (y >= 36 && y < 167) {
-        int row = (y - 36) / 34;
-        int col = x >= 164 ? 1 : 0;
-        int left = 8 + col * 156;
-        if (x >= left && x < left + 148 && (y - 36) % 34 < 29) {
-            command(row * 2 + col, confirmedBrightness, confirmedMotion);
+    if (!manualTab) {
+        for (uint8_t i = 0; i < 4; ++i) {
+            int left = 24 + (i % 2) * 152, top = 8 + (i / 2) * 96;
+            if (x >= left && x < left + 120 && y >= top && y < top + 86)
+                activateScene(library.favorites[i]);
         }
-    } else if (y >= 176 && y < 203) {
-        if (x >= 8 && x < 46) command(confirmedScene, max(0, int(confirmedBrightness) - 26), confirmedMotion);
-        if (x >= 274 && x < 312) command(confirmedScene, min(255, int(confirmedBrightness) + 26), confirmedMotion);
-    } else if (y >= 209 && y < 234 && x >= 8 && x < 156) {
-        command(confirmedScene, confirmedBrightness, !confirmedMotion);
+        return;
     }
+    if (y >= 79 && y < 107) {
+        for (uint8_t i = 0; i < 3; ++i)
+            if (x >= 12 + i * 100 && x < 108 + i * 100) selectedSide = i;
+    } else if (y >= 114 && y < 142) {
+        for (uint8_t i = 0; i < 8; ++i) {
+            if (x >= 12 + i * 38 && x < 42 + i * 38) {
+                draft.colors[selectedSide] = PALETTE[i];
+                draftEdited = true;
+            }
+        }
+    } else if (y >= 151 && y < 180) {
+        int delta = x >= 112 && x < 150 ? -1 : x >= 270 && x < 308 ? 1 : 0;
+        draft.target = Lamp::clamp(draft.target + delta, Config::SERVO_MIN_DEG, Config::SERVO_MAX_DEG);
+        if (delta) draftEdited = true;
+    } else if (y >= 185 && y < 211) {
+        int delta = x >= 112 && x < 150 ? -26 : x >= 270 && x < 308 ? 26 : 0;
+        draftBrightness = constrain(int(draftBrightness) + delta, 0, 255);
+        if (delta) draftEdited = true;
+    } else if (y >= 217 && y < 240) {
+        if (x >= 12 && x < 156) { draftMotion = !draftMotion; draftEdited = true; }
+        if (x >= 164 && x < 308) {
+            command(1, draftBrightness, draftMotion, true, draft);
+            // Keep the draft until a matching acknowledgement arrives.
+        }
+    }
+    dirty = true;
+}
+
+void jsonResponse(int code, const JsonDocument& doc) {
+    String response;
+    serializeJson(doc,response);
+    web.sendHeader("Cache-Control","no-store");
+    web.send(code,"application/json; charset=utf-8",response);
+}
+void webError(int code, const char* message) {
+    JsonDocument doc; doc["error"]=message; jsonResponse(code,doc);
+}
+bool requestBody(JsonDocument& doc) {
+    if (web.header("X-MoveLamp") != "1") { webError(403,"Bitte den Editor auf diesem CYD verwenden."); return false; }
+    if (!web.hasArg("plain") || web.arg("plain").length()>24576) {
+        webError(413,"Die Anfrage ist leer oder zu gross (maximal 24 KB).");return false;
+    }
+    if (deserializeJson(doc,web.arg("plain"),DeserializationOption::NestingLimit(8)) || !doc.is<JsonObject>()) {
+        webError(400,"Ungueltige JSON-Datei.");return false;
+    }
+    return true;
+}
+void setupWeb() {
+    const char* headers[]={"X-MoveLamp"}; web.collectHeaders(headers,1);
+    web.on("/",HTTP_GET,[]{
+        web.sendHeader("Cache-Control","no-cache");
+        web.send_P(200,"text/html; charset=utf-8",WEB_UI);
+    });
+    web.on("/api/config",HTTP_GET,[]{
+        JsonDocument doc;doc["maxScenes"]=Lamp::MAX_SAVED_SCENES;
+        doc["minAngle"]=Config::SERVO_MIN_DEG;doc["maxAngle"]=Config::SERVO_MAX_DEG;
+        doc["reference"]=Config::SERVO_REFERENCE_DEG;jsonResponse(200,doc);
+    });
+    web.on("/api/library",HTTP_GET,[]{JsonDocument doc;Lamp::encodeLibrary(doc,library);jsonResponse(200,doc);});
+    web.on("/api/library",HTTP_PUT,[]{
+        JsonDocument doc;if(!requestBody(doc))return;
+        if(!doc["revision"].is<uint32_t>()) {webError(400,"Die Bibliotheksversion fehlt.");return;}
+        if(doc["revision"].as<uint32_t>()!=library.revision) {webError(409,"Die Szenen wurden inzwischen geaendert. Bitte neu laden und erneut bearbeiten.");return;}
+        if(pending.active) {webError(409,"Bitte die laufende Szenenbestaetigung abwarten.");return;}
+        Lamp::SceneLibrary candidate;
+        if(!Lamp::decodeLibrary(doc.as<JsonObjectConst>(),candidate)) {
+            webError(400,"Ungueltige Szenen: 4 bis 32 eindeutige Szenen, 4 verschiedene Favoriten, Namen bis 32 Bytes und gueltige Farben/Winkel erforderlich.");return;
+        }
+        candidate.revision=library.revision+1;
+        if(!LibraryStore::save(candidate)) {webError(507,"Speichern fehlgeschlagen. Die bisherige Bibliothek bleibt erhalten.");return;}
+        library=candidate;dirty=true;
+        JsonDocument response;Lamp::encodeLibrary(response,library);jsonResponse(200,response);
+    });
+    web.on("/api/status",HTTP_GET,[]{
+        JsonDocument doc;doc["online"]=online;doc["pending"]=pending.active;
+        doc["active"]=activeSavedId();doc["selection"]=confirmedSelection;
+        doc["parking"]=online&&confirmedParking;doc["revision"]=library.revision;
+        doc["address"]=WiFi.status()==WL_CONNECTED?WiFi.localIP().toString():editorIP.toString();
+        doc["heap"]=ESP.getFreeHeap();jsonResponse(200,doc);
+    });
+    web.on("/api/activate",HTTP_POST,[]{
+        JsonDocument doc;if(!requestBody(doc))return;
+        if(!doc["id"].is<uint32_t>()||!Lamp::findScene(library,doc["id"])) {webError(404,"Szene nicht gefunden.");return;}
+        if(!online) {webError(503,"Die Lampe ist noch nicht verbunden.");return;}
+        if(pending.active) {webError(409,"Eine Szene wird bereits eingestellt.");return;}
+        if(!activateScene(doc["id"])) {webError(503,"Die Lampe ist nicht erreichbar.");return;}
+        JsonDocument response;response["pending"]=true;jsonResponse(202,response);
+    });
+    web.on("/api/power",HTTP_POST,[]{
+        JsonDocument doc;if(!requestBody(doc))return;
+        if(!doc["on"].is<bool>()||doc["on"].as<bool>()) {webError(400,"Zum Einschalten bitte eine Szene auswaehlen.");return;}
+        if(!command(0,confirmedBrightness,false,confirmedManual,confirmedSettings)) {webError(503,"Die Lampe ist nicht erreichbar.");return;}
+        JsonDocument response;response["pending"]=true;jsonResponse(202,response);
+    });
+    web.onNotFound([]{webError(404,"Nicht gefunden.");});
+    web.begin();
 }
 
 void tickTouch(uint32_t now) {
@@ -323,12 +667,23 @@ void setup() {
     session = esp_random();
     if (!session) session = 1;
     network.begin();
+    if(!LibraryStore::load(library)) {
+        library=Lamp::defaultLibrary();
+        if(!LibraryStore::save(library)) Serial.println("Scene defaults in RAM; storage not available");
+    }
+    // Separate subnet avoids conflicting with the lamp's 192.168.4.1 fallback AP.
+    WiFi.mode(WIFI_AP_STA);
+    WiFi.softAPConfig(editorIP,editorIP,IPAddress(255,255,255,0));
+    if(!WiFi.softAP("MoveLamp-Setup","MoveLamp1234")) Serial.println("Editor AP failed");
+    setupWeb();
+    Serial.println("Editor: MoveLamp-Setup / http://192.168.8.1");
     loadCalibration();
 }
 
 void loop() {
     uint32_t now = millis();
     network.tick();
+    web.handleClient();
     if (WiFi.status() == WL_CONNECTED) {
         if (!udpReady) udpReady = udp.begin(Config::UDP_PORT + 1);
         if (udpReady) {

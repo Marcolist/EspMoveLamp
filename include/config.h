@@ -55,8 +55,11 @@ constexpr int SERVO_MIN_US = 500;
 constexpr int SERVO_MAX_US = 2500;
 constexpr float SERVO_RANGE_DEG = 180.0f;
 constexpr float SERVO_HOME_DEG = SERVO_RANGE_DEG / 2;
+constexpr float SERVO_REFERENCE_DEG = SERVO_HOME_DEG; // calibrate on the assembled lamp
 constexpr float SERVO_MIN_DEG = SERVO_HOME_DEG - 9.0f;
 constexpr float SERVO_MAX_DEG = SERVO_HOME_DEG + 9.0f;
+static_assert(SERVO_REFERENCE_DEG >= SERVO_MIN_DEG && SERVO_REFERENCE_DEG <= SERVO_MAX_DEG,
+              "Reference position must be within mechanical limits");
 constexpr float SERVO_SPEED_DPS = 18.0f;
 constexpr bool SERVO_REVERSED = false;
 constexpr uint8_t SERVO_PWM_CHANNEL = 0;
