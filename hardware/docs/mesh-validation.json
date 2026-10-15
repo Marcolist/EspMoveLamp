@@ -1,0 +1,122 @@
+{
+  "left_electronics_base": {
+    "closed_manifold_edges": true,
+    "surface_components": 1,
+    "triangles": 5916,
+    "size_mm": [
+      160.0,
+      190.0,
+      50.0
+    ]
+  },
+  "left_electronics_cover": {
+    "closed_manifold_edges": true,
+    "surface_components": 1,
+    "triangles": 7304,
+    "size_mm": [
+      160.0,
+      190.0,
+      94.0
+    ]
+  },
+  "left_ds3225_servo_mount": {
+    "closed_manifold_edges": true,
+    "surface_components": 1,
+    "triangles": 1652,
+    "size_mm": [
+      47.0,
+      69.5,
+      64.0
+    ]
+  },
+  "right_axle_base": {
+    "closed_manifold_edges": true,
+    "surface_components": 1,
+    "triangles": 3044,
+    "size_mm": [
+      70.0,
+      100.0,
+      62.0
+    ]
+  },
+  "right_cover": {
+    "closed_manifold_edges": true,
+    "surface_components": 1,
+    "triangles": 3952,
+    "size_mm": [
+      70.0,
+      100.0,
+      84.0
+    ]
+  },
+  "servo_rear_coupling_disc": {
+    "closed_manifold_edges": true,
+    "surface_components": 1,
+    "triangles": 1968,
+    "size_mm": [
+      72.0,
+      72.0,
+      13.0
+    ]
+  },
+  "axle_rear_coupling_disc": {
+    "closed_manifold_edges": true,
+    "surface_components": 1,
+    "triangles": 1668,
+    "size_mm": [
+      72.0,
+      72.0,
+      13.0
+    ]
+  },
+  "profile_front_coupling_disc_2x": {
+    "closed_manifold_edges": true,
+    "surface_components": 1,
+    "triangles": 3688,
+    "size_mm": [
+      72.0,
+      72.0,
+      20.0
+    ]
+  },
+  "psu_retaining_bracket_2x": {
+    "closed_manifold_edges": true,
+    "surface_components": 1,
+    "triangles": 1108,
+    "size_mm": [
+      14.0,
+      106.0,
+      39.8
+    ]
+  },
+  "esp32_pcb_carrier": {
+    "closed_manifold_edges": true,
+    "surface_components": 1,
+    "triangles": 1384,
+    "size_mm": [
+      80.0,
+      42.0,
+      6.0
+    ]
+  },
+  "esp32_pcb_retainer_2x": {
+    "closed_manifold_edges": true,
+    "surface_components": 1,
+    "triangles": 288,
+    "size_mm": [
+      10.0,
+      8.0,
+      9.0
+    ]
+  },
+  "psu_terminal_cover": {
+    "closed_manifold_edges": true,
+    "surface_components": 1,
+    "triangles": 840,
+    "size_mm": [
+      43.0,
+      102.0,
+      46.0
+    ]
+  }
+}

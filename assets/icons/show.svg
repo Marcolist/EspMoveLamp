@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="-6 -6 60 60" width="64" height="64" fill="none" stroke="none" stroke-linecap="round" stroke-linejoin="round">
+<defs>
+<linearGradient id="ivory" x1="0" y1="0" x2="0.7" y2="1"><stop stop-color="#ffffff"/><stop offset="1" stop-color="#dcecf9"/></linearGradient>
+<linearGradient id="gold" x1="0" y1="0" x2="0.6" y2="1"><stop stop-color="#fff3b5"/><stop offset="1" stop-color="#ffbc55"/></linearGradient>
+<linearGradient id="lens" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#86e4ff"/><stop offset="1" stop-color="#5680e9"/></linearGradient>
+<filter id="depth" x="-30%" y="-30%" width="160%" height="170%"><feDropShadow dx="0" dy="1.1" stdDeviation="0.7" flood-color="#13213e" flood-opacity="0.2"/></filter>
+</defs>
+<g filter="url(#depth)"><g stroke="none"><path d="m24 4 7 16 16 7-16 7-7 16-7-16-16-7 16-7Z" fill="#6544b6"/><path d="m22 1 7 16 16 7-16 7-7 16-7-16L-1 24l16-7Z" fill="#fff1bd"/><path d="m41 0 3 8 8 3-8 3-3 8-3-8-8-3 8-3Z" fill="#94f3ed"/><path d="m5 33 2 6 6 2-6 2-2 6-2-6-6-2 6-2Z" fill="#ffb8df"/><circle cx="43" cy="43" r="3" fill="#fff"/></g></g>
+</svg>

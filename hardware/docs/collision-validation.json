@@ -1,0 +1,18 @@
+[
+  {
+    "check": "collision_hood_parts",
+    "empty": true
+  },
+  {
+    "check": "collision_hood_psu",
+    "empty": true
+  },
+  {
+    "check": "collision_hood_esp",
+    "empty": true
+  },
+  {
+    "check": "collision_shroud_psu",
+    "empty": true
+  }
+]

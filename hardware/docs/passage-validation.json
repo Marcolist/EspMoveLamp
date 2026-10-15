@@ -1,0 +1,131 @@
+[
+  {
+    "part": "profile_front_coupling_disc_2x",
+    "check": "Front upper LED entry",
+    "point_mm": [
+      10,
+      0.2,
+      2
+    ],
+    "free_space": true
+  },
+  {
+    "part": "profile_front_coupling_disc_2x",
+    "check": "Front lower LED entry",
+    "point_mm": [
+      10,
+      20.2,
+      2
+    ],
+    "free_space": true
+  },
+  {
+    "part": "profile_front_coupling_disc_2x",
+    "check": "Top LED entry",
+    "point_mm": [
+      0.2,
+      30,
+      2
+    ],
+    "free_space": true
+  },
+  {
+    "part": "profile_front_coupling_disc_2x",
+    "check": "Bottom LED entry",
+    "point_mm": [
+      0.2,
+      -10,
+      2
+    ],
+    "free_space": true
+  },
+  {
+    "part": "profile_front_coupling_disc_2x",
+    "check": "Top cable channel",
+    "point_mm": [
+      7,
+      27,
+      1.5
+    ],
+    "free_space": true
+  },
+  {
+    "part": "profile_front_coupling_disc_2x",
+    "check": "Bottom cable channel",
+    "point_mm": [
+      7,
+      -10,
+      1.5
+    ],
+    "free_space": true
+  },
+  {
+    "part": "profile_front_coupling_disc_2x",
+    "check": "Shared cable channel",
+    "point_mm": [
+      14,
+      18,
+      1.5
+    ],
+    "free_space": true
+  },
+  {
+    "part": "profile_front_coupling_disc_2x",
+    "check": "Concealed cable channel",
+    "point_mm": [
+      14,
+      8,
+      1.5
+    ],
+    "free_space": true
+  },
+  {
+    "part": "servo_rear_coupling_disc",
+    "check": "Rear disc cable outlet",
+    "point_mm": [
+      14,
+      8,
+      9
+    ],
+    "free_space": true
+  },
+  {
+    "part": "servo_rear_coupling_disc",
+    "check": "Open servo-side horn pocket",
+    "point_mm": [
+      -20,
+      0.2,
+      3
+    ],
+    "free_space": true
+  },
+  {
+    "part": "servo_rear_coupling_disc",
+    "check": "Hub access",
+    "point_mm": [
+      0.2,
+      0.2,
+      10
+    ],
+    "free_space": true
+  },
+  {
+    "part": "servo_rear_coupling_disc",
+    "check": "Fixed M3 hole",
+    "point_mm": [
+      -24,
+      0.2,
+      10
+    ],
+    "free_space": true
+  },
+  {
+    "check": "Extrusion end-stop",
+    "point_mm": [
+      -5,
+      20,
+      3.5
+    ],
+    "solid": true
+  }
+]
