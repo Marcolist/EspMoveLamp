@@ -72,7 +72,7 @@ The channels beneath the profile stop are 3 mm deep. A 4 mm stop separates the e
 
 There is **no external cable loop around the passive right side** and no cable-tie eye on the base. Connectors may not fit through the passages: route individual wires before final assembly. Provide a flexible service loop inside the housing and test the entire motion range slowly for rubbing, pinching, or excessive bending.
 
-The current firmware uses one serial LED data chain with parallel 5 V power injection. Refer to the root README for physical strip order and logical direction.
+The current firmware uses four separate LED data outputs: GPIO18 for top, GPIO19 for front upper, GPIO23 for front lower, and GPIO25 for bottom. Each output drives 30 pixels left to right; each strip's DOUT stays unconnected. All four strips use parallel 5 V power injection and common ground. Refer to the root README for the wiring diagram.
 
 ## Power supply, covers and heat
 

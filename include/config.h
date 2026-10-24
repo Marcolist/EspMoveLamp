@@ -40,9 +40,9 @@ constexpr uint8_t SECTIONS = 4;
 constexpr uint8_t ROWS_PER_SECTION = 1;
 constexpr uint16_t LEDS_PER_ROW = 30;
 constexpr uint16_t LED_COUNT = SECTIONS * ROWS_PER_SECTION * LEDS_PER_ROW;
-// One chain snakes L->R, R->L, L->R, R->L.
-// Four outputs each run L->R, in the same physical strip order.
-constexpr uint8_t LED_OUTPUTS = 1;
+// One data output per 30-pixel strip, all running L->R.
+// Pin order: top, front upper, front lower, bottom.
+constexpr uint8_t LED_OUTPUTS = 4;
 constexpr uint8_t LED_PINS[4] = {18, 19, 23, 25};
 constexpr bool SERPENTINE_ROWS = false;
 constexpr bool reverseStrip(uint8_t strip, uint8_t outputs = LED_OUTPUTS) {

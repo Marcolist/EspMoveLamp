@@ -63,27 +63,30 @@ The CYD uses its own separate enclosure and power supply. The planned left base 
 
 ![ESP32 pinout and low-voltage wiring](hardware/docs/wiring.png)
 
-[Vector diagram](hardware/docs/wiring.svg). This diagram documents the actual direct connection: ESP32 GPIO18 connects to DIN of the first LED strip, without a level shifter.
+[Vector diagram](hardware/docs/wiring.svg). This diagram documents four direct connections from the ESP32 GPIOs to the strip DIN inputs, without a level shifter.
 
-The current firmware uses **one data output on GPIO18** for a 120-pixel chain:
+The current firmware uses **four separate data outputs**, each driving one 30-pixel strip (`LED_OUTPUTS = 4`):
 
 ```text
-GPIO18 -> TOP DIN -> FRONT UPPER -> FRONT LOWER -> BOTTOM
+GPIO18 -> TOP DIN          (30 pixels)
+GPIO19 -> FRONT UPPER DIN  (30 pixels)
+GPIO23 -> FRONT LOWER DIN  (30 pixels)
+GPIO25 -> BOTTOM DIN       (30 pixels)
 GPIO27 -> DS3225 signal
 5 V supply -> parallel power injection to all four strips
 GND -> common ground for LEDs, ESP32, and servo
 ```
 
-Viewed from the same side, the data directions alternate:
+Viewed from the same side, all four strips run left to right:
 
-| Strip | Data direction |
-| --- | --- |
-| Top | Left to right |
-| Front upper | Right to left |
-| Front lower | Left to right |
-| Bottom | Right to left |
+| Strip | ESP32 data pin | Data direction |
+| --- | --- | --- |
+| Top | GPIO18 | Left to right |
+| Front upper | GPIO19 | Left to right |
+| Front lower | GPIO23 | Left to right |
+| Bottom | GPIO25 | Left to right |
 
-The firmware reverses the logical pixel order of the second and fourth strips so effects have a consistent left-to-right direction. Four independent data outputs are an optional, currently disabled configuration using GPIO18, GPIO19, GPIO23, and GPIO25.
+Connect each strip's DIN to its designated GPIO. Leave each strip's DOUT unconnected; there are no data links between strips. The firmware uses the same logical left-to-right pixel direction on every output. Power and ground are still distributed in parallel to all four strips.
 
 Power the LEDs and servo from an adequately rated supply, **not through the ESP32 USB connector**. Classic WS2812 LEDs can draw up to approximately 7.2 A at full RGB white across 120 pixels. Firmware currently caps *estimated LED current* to 4 A; this is not a measured total-system current limit. The DS3225 also needs sufficient transient current. Use appropriate wiring, protection, and power injection. The ESP32 and LED supply must share a common ground.
 
